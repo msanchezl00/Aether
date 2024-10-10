@@ -1,7 +1,7 @@
 {
     "seeds":[
-        ["www.usal.es", 1],
-        ["www.fis.usal.es", 3]
+        {"www.usal.es": 1},
+        {"www.fis.usal.es": 3}
     ],
     "robots": true,
     "recursive": true,

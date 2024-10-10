@@ -1,5 +1,5 @@
 package parser
 
-type ParserService interface {
+type ParserInterface interface {
 	Parser()
 }

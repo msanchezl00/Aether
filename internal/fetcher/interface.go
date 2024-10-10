@@ -1,6 +1,6 @@
 package fetcher
 
-type FetcherService interface {
+type FetcherInterface interface {
 	Fetch()
 	FetchHtml()
 	FetchMetadata()

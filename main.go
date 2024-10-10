@@ -1,5 +1,100 @@
 package main
 
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"minimal-crawler/internal/core"
+	crawler "minimal-crawler/internal/crawler"
+	fetcher "minimal-crawler/internal/fetcher"
+	parser "minimal-crawler/internal/parser"
+	storage "minimal-crawler/internal/storage"
+	"os"
+)
+
+// estructura de la configuracion del json
+var Config struct {
+	Seeds     []map[string]int `json:"seeds"`
+	Robots    bool             `json:"robots"`
+	Recursive bool             `json:"recursive"`
+	Data      struct {
+		HTML       bool `json:"html"`
+		Metadata   bool `json:"metadata"`
+		Links      bool `json:"links"`
+		Text       bool `json:"text"`
+		Structures bool `json:"structures"`
+		Images     bool `json:"images"`
+	} `json:"data"`
+	Indexers []string `json:"indexers"`
+}
+
 func main() {
 
+	// abrimos el archivo y generamos un tipo File de go
+	file, err := os.Open("config.json")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer file.Close()
+
+	// guardamos el File en un array de bytes
+	fileByte, err := io.ReadAll(file)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// deserializamos el json del array de bytes y lo guardamos en
+	// la variable general Config
+	err = json.Unmarshal(fileByte, &Config)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// uso de ampersan para pasarle la referencia del objeto y poder usar
+	// la interfaz, de esta manera solo tienes acceso a las funciones definidas en la interfaz
+	// tambien permite modificar el objeto original y no perder la informacion
+	// en tiempo de ejecucion
+	fetcher := &fetcher.Service{
+		FetcherConfig: core.FetcherConfig{},
+	}
+
+	// creacion del parser
+	parser := &parser.Service{
+		ParserConfig: core.ParserConfig{
+			Html:       true,
+			Metadata:   true,
+			Links:      true,
+			Text:       true,
+			Structures: true,
+			Images:     true,
+		},
+	}
+
+	// creacion del storage
+	storage := &storage.Service{
+		StorageConfig: core.StorageConfig{
+			Indexers: nil,
+		},
+	}
+
+	// Creacion del crawler con las 3 partes fundamentales ya configuradas
+	// y creacion de la configuracion general del crawler destinada a
+	// control de flujo de la aplicacion
+	crawler := crawler.Handler{
+		CrawlerConfing: core.CrawlerConfig{
+			Seeds:     nil,
+			Recursive: false,
+			Robots:    false,
+		},
+		FetcherService: fetcher,
+		ParserService:  parser,
+		StorageService: storage,
+	}
+
+	// iniciar crawler, validara los storage proporcionados(que esten disponibles)
+	// y validara que las url base de las seeds(que esten activas[si devuelven algun codigo de error se borraran de las seeds])
+	crawler.InitCrawler()
 }

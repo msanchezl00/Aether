@@ -1,9 +1,11 @@
 package storage
 
+import "minimal-crawler/internal/core"
+
 type Service struct {
-	Service StorageService
+	StorageConfig core.StorageConfig
 }
 
-func (s Service) Storage() {
+func (s *Service) Storage() {
 
 }

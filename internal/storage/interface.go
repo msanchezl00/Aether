@@ -1,5 +1,5 @@
 package storage
 
-type StorageService interface {
+type StorageInterface interface {
 	Storage()
 }
