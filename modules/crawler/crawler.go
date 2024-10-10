@@ -1,10 +1,10 @@
 package crawler
 
 import (
-	"minimal-crawler/internal/core"
-	"minimal-crawler/internal/fetcher"
-	"minimal-crawler/internal/parser"
-	"minimal-crawler/internal/storage"
+	core "minimal-crawler/modules/config"
+	"minimal-crawler/modules/fetcher"
+	"minimal-crawler/modules/parser"
+	"minimal-crawler/modules/storage"
 )
 
 type Handler struct {

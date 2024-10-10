@@ -1,6 +1,6 @@
 package parser
 
-import "minimal-crawler/internal/core"
+import core "minimal-crawler/modules/config"
 
 type Service struct {
 	ParserConfig core.ParserConfig

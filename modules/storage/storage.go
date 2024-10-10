@@ -1,6 +1,6 @@
 package storage
 
-import "minimal-crawler/internal/core"
+import core "minimal-crawler/modules/config"
 
 type Service struct {
 	StorageConfig core.StorageConfig

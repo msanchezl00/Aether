@@ -1,6 +1,6 @@
 package fetcher
 
-import "minimal-crawler/internal/core"
+import core "minimal-crawler/modules/config"
 
 type Service struct {
 	FetcherConfig core.FetcherConfig

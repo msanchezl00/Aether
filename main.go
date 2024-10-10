@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"minimal-crawler/internal/core"
-	crawler "minimal-crawler/internal/crawler"
-	fetcher "minimal-crawler/internal/fetcher"
-	parser "minimal-crawler/internal/parser"
-	storage "minimal-crawler/internal/storage"
+	config "minimal-crawler/modules/config"
+	crawler "minimal-crawler/modules/crawler"
+	fetcher "minimal-crawler/modules/fetcher"
+	parser "minimal-crawler/modules/parser"
+	storage "minimal-crawler/modules/storage"
 	"os"
 )
 
@@ -58,12 +58,12 @@ func main() {
 	// tambien permite modificar el objeto original y no perder la informacion
 	// en tiempo de ejecucion
 	fetcher := &fetcher.Service{
-		FetcherConfig: core.FetcherConfig{},
+		FetcherConfig: config.FetcherConfig{},
 	}
 
 	// creacion del parser
 	parser := &parser.Service{
-		ParserConfig: core.ParserConfig{
+		ParserConfig: config.ParserConfig{
 			Html:       true,
 			Metadata:   true,
 			Links:      true,
@@ -75,7 +75,7 @@ func main() {
 
 	// creacion del storage
 	storage := &storage.Service{
-		StorageConfig: core.StorageConfig{
+		StorageConfig: config.StorageConfig{
 			Indexers: nil,
 		},
 	}
@@ -84,7 +84,7 @@ func main() {
 	// y creacion de la configuracion general del crawler destinada a
 	// control de flujo de la aplicacion
 	crawler := crawler.Handler{
-		CrawlerConfing: core.CrawlerConfig{
+		CrawlerConfing: config.CrawlerConfig{
 			Seeds:     nil,
 			Recursive: false,
 			Robots:    false,
