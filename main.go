@@ -58,7 +58,9 @@ func main() {
 	// tambien permite modificar el objeto original y no perder la informacion
 	// en tiempo de ejecucion
 	fetcher := &fetcher.Service{
-		FetcherConfig: config.FetcherConfig{},
+		FetcherConfig: config.FetcherConfig{
+			Robots: false,
+		},
 	}
 
 	// creacion del parser
@@ -83,11 +85,10 @@ func main() {
 	// Creacion del crawler con las 3 partes fundamentales ya configuradas
 	// y creacion de la configuracion general del crawler destinada a
 	// control de flujo de la aplicacion
-	crawler := crawler.Handler{
+	crawler := &crawler.Handler{
 		CrawlerConfing: config.CrawlerConfig{
 			Seeds:     nil,
 			Recursive: false,
-			Robots:    false,
 		},
 		FetcherService: fetcher,
 		ParserService:  parser,
