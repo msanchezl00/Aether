@@ -1,8 +1,8 @@
-# 🚀 Minimal-Crawler 🚀
+# 🚀 Minimal-Crawler 🚀 #
 
     Este proyecto es un minimal crawler modular diseñado para capturar, procesar y almacenar datos de páginas web. El sistema está dividido en tres componentes principales: Fetcher, Parser y Storage, cada uno con responsabilidades claramente definidas. A continuación, encontrarás una explicación detallada de cómo funciona cada parte y cómo se integran entre sí.
 
-# 🛠️ Arquitectura del Crawler
+# 🛠️ Arquitectura del Crawler #
 
     1. Fetcher
     El Fetcher es el componente encargado de hacer solicitudes HTTP para obtener el contenido de una página web. Su función principal es interactuar con servidores web, manejar respuestas y gestionar errores o redirecciones.
