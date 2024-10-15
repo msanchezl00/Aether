@@ -20,6 +20,14 @@ var wg sync.WaitGroup
 
 func (h *Handler) InitCrawler() {
 
+	// cada seed se encargara de una url(parsear, storage ...) sera el padre de esta
+	// y cuando investigue en profundidad por cada nueva url se crearan nuevas goroutines de forma recursiva
+	// por cada nivel de profundidad una nueva generacion de goroutines se creara hasta llegar  aun limite
+	// al final se podra observar un arbol de goroutines cada una encargada de una url nueva
+	// con url nueva se refiere a un nuevo dominio o subdominio
+	// por lo que en anchura se encargara la misma goroutine pero en profundidad se encargaran otras goroutines
+	// generadas de forma dinamica
+
 	// se recorre la lista de seeds que van a aser crawleadas
 	for i, seedMap := range h.CrawlerConfing.Seeds {
 		for url := range seedMap {
