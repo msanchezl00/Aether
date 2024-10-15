@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	config "minimal-crawler/modules/config"
 	crawler "minimal-crawler/modules/crawler"
@@ -18,7 +17,7 @@ var Config struct {
 	Robots    bool             `json:"robots"`
 	Recursive bool             `json:"recursive"`
 	Data      struct {
-		HTML       bool `json:"html"`
+		Html       bool `json:"html"`
 		Metadata   bool `json:"metadata"`
 		Links      bool `json:"links"`
 		Text       bool `json:"text"`
@@ -30,10 +29,13 @@ var Config struct {
 
 func main() {
 
+	// inicializacion de la configuracion del logger
+	config.InitLogger()
+
 	// abrimos el archivo y generamos un tipo File de go
 	file, err := os.Open("config.json")
 	if err != nil {
-		fmt.Println(err)
+		config.Logger.Errorf("Error opening config file: %v", err)
 		return
 	}
 	defer file.Close()
@@ -41,7 +43,7 @@ func main() {
 	// guardamos el File en un array de bytes
 	fileByte, err := io.ReadAll(file)
 	if err != nil {
-		fmt.Println(err)
+		config.Logger.Errorf("Error saving config file: %v", err)
 		return
 	}
 
@@ -49,7 +51,7 @@ func main() {
 	// la variable general Config
 	err = json.Unmarshal(fileByte, &Config)
 	if err != nil {
-		fmt.Println(err)
+		config.Logger.Errorf("Error unmarshaling config file: %v", err)
 		return
 	}
 
@@ -59,26 +61,26 @@ func main() {
 	// en tiempo de ejecucion
 	fetcher := &fetcher.Service{
 		FetcherConfig: config.FetcherConfig{
-			Robots: false,
+			Robots: Config.Robots,
 		},
 	}
 
 	// creacion del parser
 	parser := &parser.Service{
 		ParserConfig: config.ParserConfig{
-			Html:       true,
-			Metadata:   true,
-			Links:      true,
-			Text:       true,
-			Structures: true,
-			Images:     true,
+			Html:       Config.Data.Html,
+			Metadata:   Config.Data.Metadata,
+			Links:      Config.Data.Links,
+			Text:       Config.Data.Text,
+			Structures: Config.Data.Structures,
+			Images:     Config.Data.Images,
 		},
 	}
 
 	// creacion del storage
 	storage := &storage.Service{
 		StorageConfig: config.StorageConfig{
-			Indexers: nil,
+			Indexers: Config.Indexers,
 		},
 	}
 
@@ -87,8 +89,8 @@ func main() {
 	// control de flujo de la aplicacion
 	crawler := &crawler.Handler{
 		CrawlerConfing: config.CrawlerConfig{
-			Seeds:     nil,
-			Recursive: false,
+			Seeds:     Config.Seeds,
+			Recursive: Config.Recursive,
 		},
 		FetcherService: fetcher,
 		ParserService:  parser,

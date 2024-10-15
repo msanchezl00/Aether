@@ -1,13 +1,20 @@
 package fetcher
 
-import core "minimal-crawler/modules/config"
+import (
+	core "minimal-crawler/modules/config"
+	"minimal-crawler/utils"
+)
 
 type Service struct {
 	FetcherConfig core.FetcherConfig
 }
 
-func (s *Service) Fetch() {
-
+func (s *Service) Fetch(url string) (string, error) {
+	htmlRaw, err := utils.GetRequest(url)
+	if err != nil {
+		return "", err
+	}
+	return string(htmlRaw), nil
 }
 func (s *Service) FetchHtml() {
 

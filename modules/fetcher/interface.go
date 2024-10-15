@@ -1,7 +1,7 @@
 package fetcher
 
 type FetcherInterface interface {
-	Fetch()
+	Fetch(url string) (string, error)
 	FetchHtml()
 	FetchMetadata()
 	FetchLinks()
