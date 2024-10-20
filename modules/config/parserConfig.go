@@ -1,4 +1,4 @@
-package core
+package config
 
 type ParserConfig struct {
 	Html       bool

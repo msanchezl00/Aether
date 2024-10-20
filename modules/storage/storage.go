@@ -1,9 +1,9 @@
 package storage
 
-import core "minimal-crawler/modules/config"
+import config "minimal-crawler/modules/config"
 
 type Service struct {
-	StorageConfig core.StorageConfig
+	StorageConfig config.StorageConfig
 }
 
 func (s *Service) Storage() {

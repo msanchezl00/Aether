@@ -20,6 +20,7 @@ var wg sync.WaitGroup
 
 func (h *Handler) InitCrawler() {
 
+	defer config.Logger.Info("crawler finished successfully")
 	// cada seed se encargara de una url(parsear, storage ...) sera el padre de esta
 	// y cuando investigue en profundidad por cada nueva url se crearan nuevas goroutines de forma recursiva
 	// por cada nivel de profundidad una nueva generacion de goroutines se creara hasta llegar  aun limite
@@ -31,9 +32,9 @@ func (h *Handler) InitCrawler() {
 	// se recorre la lista de seeds que van a aser crawleadas
 	for i, seedMap := range h.CrawlerConfing.Seeds {
 		for url := range seedMap {
-			// funcion anonima para lanzar una url por cada goroutine
 			// se agrega al grupo de goroutines
 			wg.Add(1)
+			// funcion anonima para lanzar una url por cada goroutine
 			go func(url string) {
 				// se espera a q acabe la funcion anonima para liberarse
 				defer wg.Done()
@@ -46,6 +47,7 @@ func (h *Handler) InitCrawler() {
 		}
 	}
 
+	config.Logger.Info("crawler started successfully")
 	// proceso padre espera a que las goroutines mueran
 	wg.Wait()
 }
