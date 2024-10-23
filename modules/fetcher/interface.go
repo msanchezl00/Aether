@@ -1,5 +1,5 @@
 package fetcher
 
 type FetcherInterface interface {
-	Fetch(url string) (string, error)
+	Fetch(url string) ([]byte, error)
 }

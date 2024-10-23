@@ -1,6 +1,6 @@
 {
     "seeds":[
-        {"htts://www.usal.es": 1},
+        {"https://www.usal.es": 1},
         {"htts://www.fis.usal.es": 3},
         {"htts://www.usal.es": 1},
         {"htts://www.fis.usal.es": 3}

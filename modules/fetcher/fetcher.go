@@ -10,12 +10,12 @@ type Service struct {
 	FetcherConfig config.FetcherConfig
 }
 
-func (s *Service) Fetch(url string) (string, error) {
-	htmlRaw, err := utils.GetRequest(url)
+func (s *Service) Fetch(url string) ([]byte, error) {
+	htmlUTF8, err := utils.GetRequest(url)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return string(htmlRaw), nil
+	return htmlUTF8, nil
 }
 func (s *Service) FetchRendered(url string) (string, error) {
 	// renderizar el html de una pagina con un webdriver

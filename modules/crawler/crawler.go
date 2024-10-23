@@ -30,7 +30,7 @@ func (h *Handler) InitCrawler() {
 	// generadas de forma dinamica
 
 	// se recorre la lista de seeds que van a aser crawleadas
-	for i, seedMap := range h.CrawlerConfing.Seeds {
+	for _, seedMap := range h.CrawlerConfing.Seeds {
 		for url := range seedMap {
 			// se agrega al grupo de goroutines
 			wg.Add(1)
@@ -38,11 +38,16 @@ func (h *Handler) InitCrawler() {
 			go func(url string) {
 				// se espera a q acabe la funcion anonima para liberarse
 				defer wg.Done()
-				htmlString, err := h.FetcherService.Fetch(url)
+				htmlUTF8, err := h.FetcherService.Fetch(url)
 				if err != nil {
 					config.Logger.Errorf("Error fetching url: %v", err)
 				}
-				config.Logger.Infof("url: %d %s", i, htmlString)
+
+				_, err = h.ParserService.Parse(htmlUTF8)
+				if err != nil {
+					config.Logger.Errorf("Error parsing url: %v", err)
+				}
+
 			}(url)
 		}
 	}
