@@ -38,6 +38,7 @@ func (h *Handler) InitCrawler() {
 			go func(url string) {
 				// se espera a q acabe la funcion anonima para liberarse
 				defer wg.Done()
+
 				htmlUTF8, err := h.FetcherService.Fetch(url)
 				if err != nil {
 					config.Logger.Errorf("Error fetching url: %v", err)

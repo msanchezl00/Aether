@@ -1,9 +1,7 @@
 {
     "seeds":[
         {"https://www.usal.es": 1},
-        {"htts://www.fis.usal.es": 3},
-        {"htts://www.usal.es": 1},
-        {"htts://www.fis.usal.es": 3}
+        {"https://go.dev": 1}
     ],
     "robots": true,
     "recursive": true,
