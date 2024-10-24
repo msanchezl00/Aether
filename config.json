@@ -1,7 +1,6 @@
 {
     "seeds":[
-        {"https://www.usal.es": 1},
-        {"https://go.dev": 1}
+        {"https://www.usal.es": 1}
     ],
     "robots": true,
     "recursive": true,
