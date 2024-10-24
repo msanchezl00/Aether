@@ -56,6 +56,7 @@ func (s *Service) Parse(htmlUTF8 []byte) ([]map[string][]string, error) {
 
 func (s *Service) ParseLinks(doc *goquery.Document) (map[string][]string, error) {
 
+	// map clave valor para con clave=links y como valor un vector de strings de la informacion de metadatos
 	links := make(map[string][]string)
 
 	// se grepea por las etiquetas <a> y dentro de ellas por la etiqueta css href
@@ -63,7 +64,7 @@ func (s *Service) ParseLinks(doc *goquery.Document) (map[string][]string, error)
 	doc.Find("a").Each(func(i int, a *goquery.Selection) {
 		link, _ := a.Attr("href")
 		if strings.HasPrefix(link, "https") {
-			links["links"] = append(links["links"], link)
+			links["links"] = append(links["links"], "link:"+link)
 		}
 	})
 
@@ -72,6 +73,7 @@ func (s *Service) ParseLinks(doc *goquery.Document) (map[string][]string, error)
 
 func (s *Service) ParseMetadata(doc *goquery.Document) (map[string][]string, error) {
 
+	// map clave valor para con clave=metadata y como valor un vector de strings de la informacion de metadatos
 	metadatas := make(map[string][]string)
 
 	// Extraer metadatos, se chequea primero si hay charset especificado
@@ -79,17 +81,16 @@ func (s *Service) ParseMetadata(doc *goquery.Document) (map[string][]string, err
 	// <meta name="description" content="Descripción de la página.">
 	doc.Find("meta").Each(func(i int, meta *goquery.Selection) {
 		charset, exists := meta.Attr("charset")
-		if !exists {
+		if exists {
+			metadatas["metadata"] = append(metadatas["metadata"], "charset:"+charset)
+		} else {
 			name, exists := meta.Attr("name")
 			content, _ := meta.Attr("content")
 			if exists {
 				// Agregar el par clave-valor al slice
 				metadatas["metadata"] = append(metadatas["metadata"], name+":"+content)
-				return
 			}
-			return
 		}
-		metadatas["metadata"] = append(metadatas["metadata"], "charset:"+charset)
 	})
 
 	// se extrae el titulo de la pagina
@@ -97,11 +98,29 @@ func (s *Service) ParseMetadata(doc *goquery.Document) (map[string][]string, err
 	title := doc.Find("title").Text()
 	metadatas["metadata"] = append(metadatas["metadata"], "title:"+title)
 
-	// TODO se extrae el archivo de estilos css
+	// se extrae el archivo de estilos css
 	// <link rel="stylesheet" href="estilos.css">
+	doc.Find("link").Each(func(i int, meta *goquery.Selection) {
+		href, exists := meta.Attr("href")
+		if exists {
+			if strings.HasSuffix(href, ".css") {
+				metadatas["metadata"] = append(metadatas["metadata"], "style:"+href)
+			} else if strings.HasSuffix(href, ".png") || strings.HasSuffix(href, ".ico") {
+				metadatas["metadata"] = append(metadatas["metadata"], "logo:"+href)
+			}
+		}
+	})
 
-	// TODO se extrae el .js asociado
+	// se extrae el .js asociado
 	// <script src="script.js"></script>
+	doc.Find("script").Each(func(i int, meta *goquery.Selection) {
+		script, exists := meta.Attr("src")
+		if exists {
+			if strings.HasPrefix(script, "https") {
+				metadatas["metadata"] = append(metadatas["metadata"], "script:"+script)
+			}
+		}
+	})
 
 	return metadatas, nil
 }
