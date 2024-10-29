@@ -17,12 +17,10 @@ var Config struct {
 	Robots    bool             `json:"robots"`
 	Recursive bool             `json:"recursive"`
 	Data      struct {
-		Html       bool `json:"html"`
-		Metadata   bool `json:"metadata"`
-		Links      bool `json:"links"`
-		Text       bool `json:"text"`
-		Structures bool `json:"structures"`
-		Images     bool `json:"images"`
+		Metadata bool `json:"metadata"`
+		Links    bool `json:"links"`
+		Text     bool `json:"text"`
+		Images   bool `json:"images"`
 	} `json:"data"`
 	Indexers []string `json:"indexers"`
 }
@@ -68,12 +66,10 @@ func main() {
 	// creacion del parser
 	parser := &parser.Service{
 		ParserConfig: config.ParserConfig{
-			Html:       Config.Data.Html,
-			Metadata:   Config.Data.Metadata,
-			Links:      Config.Data.Links,
-			Text:       Config.Data.Text,
-			Structures: Config.Data.Structures,
-			Images:     Config.Data.Images,
+			Metadata: Config.Data.Metadata,
+			Links:    Config.Data.Links,
+			Text:     Config.Data.Text,
+			Images:   Config.Data.Images,
 		},
 	}
 

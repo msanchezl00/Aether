@@ -1,15 +1,15 @@
 {
     "seeds":[
-        {"https://www.usal.es": 1}
+        {"https://www.usal.es": 1},
+        {"https://www.unileon.es": 1},
+        {"https://www.ubu.es": 1}
     ],
     "robots": true,
     "recursive": true,
     "data": {
-        "html": false,
         "metadata": true,
         "links": true,
         "text": true,
-        "structures": false,
         "images": true
     },
     "indexers":[

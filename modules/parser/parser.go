@@ -15,7 +15,7 @@ type Service struct {
 
 func (s *Service) Parse(htmlUTF8 []byte) ([]byte, error) {
 
-	// TODO hay que declarar dinamicamente el numero de maps que tendria
+	// se declara el datamap donde se guardara toda la informacion de la url en concreto
 	data := make([]map[string]map[string][]string, 0)
 
 	// creacion de la variable de tipo document goquery para parsear
@@ -32,7 +32,7 @@ func (s *Service) Parse(htmlUTF8 []byte) ([]byte, error) {
 	// se junta a la matriz bidimensional el vector de string con los links
 	data = append(data, links)
 
-	// parsear links
+	// parsear metadata
 	metadatas, err := s.ParseMetadata(doc)
 	if err != nil {
 		return nil, err
@@ -46,25 +46,27 @@ func (s *Service) Parse(htmlUTF8 []byte) ([]byte, error) {
 	}
 	data = append(data, imgs)
 
-	// parsear imgs
+	// parsear texts
 	texts, err := s.ParseTexts(doc)
 	if err != nil {
 		return nil, err
 	}
 	data = append(data, texts)
 
+	/* para formatearlo a lo correcto
 	dataByte, err := json.Marshal(data)
 	if err != nil {
 		return nil, err
 	}
+	*/
 
 	/* para visualizar el json formateado para hacer pruebas
+	 */
 	dataByte, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
 		return nil, err
 	}
 	config.Logger.Infof(string(dataByte))
-	*/
 
 	return dataByte, nil
 }
@@ -81,7 +83,23 @@ func (s *Service) ParseLinks(doc *goquery.Document) (map[string]map[string][]str
 	doc.Find("a").Each(func(i int, a *goquery.Selection) {
 		link, _ := a.Attr("href")
 		if strings.HasPrefix(link, "https") {
-			links["links"]["links"] = append(links["links"]["links"], link)
+			links["links"]["https"] = append(links["links"]["https"], link)
+		} else if strings.HasPrefix(link, "http") {
+			links["links"]["http"] = append(links["links"]["http"], link)
+		} else if strings.HasSuffix(link, "pdf") ||
+			strings.HasSuffix(link, "xlsx") ||
+			strings.HasSuffix(link, "xls") ||
+			strings.HasSuffix(link, "docx") ||
+			strings.HasSuffix(link, "doc") ||
+			strings.HasSuffix(link, "pptx") ||
+			strings.HasSuffix(link, "ppt") ||
+			strings.HasSuffix(link, "txt") ||
+			strings.HasSuffix(link, "csv") ||
+			strings.HasSuffix(link, "zip") ||
+			strings.HasSuffix(link, "rar") {
+			links["links"]["files"] = append(links["links"]["files"], link)
+		} else {
+			links["links"]["internal"] = append(links["links"]["internal"], link)
 		}
 	})
 
@@ -118,8 +136,8 @@ func (s *Service) ParseMetadata(doc *goquery.Document) (map[string]map[string][]
 
 	// se extrae el archivo de estilos css
 	// <link rel="stylesheet" href="estilos.css">
-	doc.Find("link").Each(func(i int, meta *goquery.Selection) {
-		href, exists := meta.Attr("href")
+	doc.Find("link").Each(func(i int, link *goquery.Selection) {
+		href, exists := link.Attr("href")
 		if exists {
 			if strings.HasSuffix(href, ".css") {
 				metadatas["metadata"]["styles"] = append(metadatas["metadata"]["styles"], href)
@@ -131,11 +149,11 @@ func (s *Service) ParseMetadata(doc *goquery.Document) (map[string]map[string][]
 
 	// se extrae el .js asociado
 	// <script src="script.js"></script>
-	doc.Find("script").Each(func(i int, meta *goquery.Selection) {
-		script, exists := meta.Attr("src")
+	doc.Find("script").Each(func(i int, script *goquery.Selection) {
+		link, exists := script.Attr("src")
 		if exists {
-			if strings.HasPrefix(script, "https") {
-				metadatas["metadata"]["scripts"] = append(metadatas["metadata"]["scripts"], script)
+			if strings.HasPrefix(link, "https") {
+				metadatas["metadata"]["scripts"] = append(metadatas["metadata"]["scripts"], link)
 			}
 		}
 	})
@@ -150,8 +168,8 @@ func (s *Service) ParseImages(doc *goquery.Document) (map[string]map[string][]st
 	// inicializar el map interno
 	imgs["imgs"] = make(map[string][]string)
 
-	doc.Find("img").Each(func(i int, a *goquery.Selection) {
-		link, _ := a.Attr("src")
+	doc.Find("img").Each(func(i int, img *goquery.Selection) {
+		link, _ := img.Attr("src")
 		if strings.HasPrefix(link, "https") {
 			imgs["imgs"]["imgs"] = append(imgs["imgs"]["imgs"], link)
 		}
@@ -166,18 +184,18 @@ func (s *Service) ParseTexts(doc *goquery.Document) (map[string]map[string][]str
 	// inicializar el map interno
 	texts["texts"] = make(map[string][]string)
 
-	doc.Find("h1").Each(func(i int, a *goquery.Selection) {
-		text := a.Text()
+	doc.Find("h1").Each(func(i int, h1 *goquery.Selection) {
+		text := h1.Text()
 		texts["texts"]["h1"] = append(texts["texts"]["h1"], text)
 	})
 
-	doc.Find("h2").Each(func(i int, a *goquery.Selection) {
-		text := a.Text()
+	doc.Find("h2").Each(func(i int, h2 *goquery.Selection) {
+		text := h2.Text()
 		texts["texts"]["h2"] = append(texts["texts"]["h2"], text)
 	})
 
-	doc.Find("p").Each(func(i int, a *goquery.Selection) {
-		text := a.Text()
+	doc.Find("p").Each(func(i int, p *goquery.Selection) {
+		text := p.Text()
 		texts["texts"]["p"] = append(texts["texts"]["p"], text)
 	})
 
