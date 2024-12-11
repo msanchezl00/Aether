@@ -17,6 +17,8 @@ type Handler struct {
 
 // variable para tener controlados los subprocesos por parte del padre maestro y esperar a su muerte de forma ordenada
 var wg sync.WaitGroup
+var mu sync.Mutex
+var crawledDomains []string
 
 func (h *Handler) InitCrawler() {
 	// los defer se resuelven el LIFO
@@ -46,6 +48,11 @@ func (h *Handler) Crawler(url string, deep int) {
 	// despues ya hace el done
 	defer wgRecursive.Wait()
 
+	// agregar la url que se va a crawlear a la lista de dominios crawleados
+	mu.Lock()
+	crawledDomains = append(crawledDomains, url)
+	mu.Unlock()
+
 	// comprueba que la profundidad no sea menor a 0, si es asi simplemente acaba la funcion
 	// y se rompe la cadena de recursividad
 	if deep < 0 {
@@ -59,10 +66,12 @@ func (h *Handler) Crawler(url string, deep int) {
 		config.Logger.Errorf("Error fetching url: %v", err)
 	}
 
-	_, err = h.ParserService.Parse(htmlUTF8)
+	parsedData, err := h.ParserService.Parse(htmlUTF8)
 	if err != nil {
 		config.Logger.Errorf("Error parsing url: %v", err)
 	}
+
+	config.Logger.Infof(string(parsedData))
 
 	// obtener los links que apuntan a dominios externos para
 	// empezar la recursividad y hacer un for recorriendolos y mandando

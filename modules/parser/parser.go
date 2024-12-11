@@ -51,22 +51,20 @@ func (s *Service) Parse(htmlUTF8 []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	
 	data = append(data, texts)
 
-	/* para formatearlo a lo correcto
-	dataByte, err := json.Marshal(data)
+	/* para visualizar el json formateado para hacer pruebas
+	dataByte, err := json.MarshalIndent(parsedData, "", "  ")
 	if err != nil {
 		return nil, err
 	}
 	*/
 
-	/* para visualizar el json formateado para hacer pruebas
-	 */
-	dataByte, err := json.MarshalIndent(data, "", "  ")
+	dataByte, err := json.Marshal(data)
 	if err != nil {
 		return nil, err
 	}
-	config.Logger.Infof(string(dataByte))
 
 	return dataByte, nil
 }

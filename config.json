@@ -1,8 +1,8 @@
 {
     "seeds":[
-        {"https://www.usal.es": 1},
-        {"https://www.unileon.es": 1},
-        {"https://www.ubu.es": 1}
+        {"https://www.usal.es": 0},
+        {"https://www.unileon.es": 0},
+        {"https://www.ubu.es": 0}
     ],
     "robots": true,
     "recursive": true,
