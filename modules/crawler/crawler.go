@@ -49,6 +49,8 @@ func (h *Handler) Crawler(rawURL string, deep int) {
 	if deep < 0 {
 		return
 	}
+	// restamos 1 a la profundidad
+	deep -= 1
 
 	domain, err := utils.ExtractDomain(rawURL)
 	if err != nil {
@@ -61,9 +63,6 @@ func (h *Handler) Crawler(rawURL string, deep int) {
 	if !flag {
 		return
 	}
-
-	// restamos 1 a la profundidad
-	deep -= 1
 
 	htmlUTF8, err := h.FetcherService.Fetch(rawURL, h.CrawlerConfing.Timeout)
 	if err != nil {
@@ -102,13 +101,10 @@ func (h *Handler) Crawler(rawURL string, deep int) {
 		// funcion anonima para lanzar una url por cada dominio libre
 		go h.Crawler(freeURL, deep)
 	}
-	// obtener los links que apuntan a dominios externos para
-	// empezar la recursividad y hacer un for recorriendolos y mandando
-	// a un subproceso por cada link de dominio externo al principal
-	// de la url que entra por parametro en esta funcion
-	// al hacer la llamada recursiva es muy importante restarle 1 a deep
-	// para que haya opcion a salida y que deep llegue a -1, es la condicion
-	// de salida de la recursividad
+
+	// TODO ver una forma de explorar en horizontal, en la estructura de datos [links][internal] e ir concatenandolos a la rawURL principal y repetir los pasos anteriores
+	// y que de alguna forma haya una recursividad pero esta vez con la misma goroutina sin llamar a otras para esta recursividad, como hacer recursividad pero con un solo hilo
+	// podria verificarse que si una url no es solo bbase y tiene cosas concatenadas no se verifica si esta en la lista ni se agrega, ya que proviese de una base o algo asi
 
 	// storage al kafka-->consumidores-->namenode(nodo de entrada en hadoop)
 }
