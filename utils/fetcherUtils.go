@@ -5,13 +5,20 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/qiniu/iconv"
 )
 
-func GetRequest(url string) ([]byte, error) {
+func GetRequest(url string, timeout float32) ([]byte, error) {
+	// configuracion del cliente http
+	// TODO crear un cliente por goroutine para no tener que crear uno cada vez que se haga una peticion
+	client := &http.Client{
+		Timeout: time.Duration(timeout) * time.Second,
+	}
+
 	// peticion GET HTTP para obtener el html
-	response, err := http.Get(url)
+	response, err := client.Get(url)
 	if err != nil {
 		return nil, err
 	}

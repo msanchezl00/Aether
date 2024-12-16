@@ -23,6 +23,7 @@ var Config struct {
 		Images   bool `json:"images"`
 	} `json:"data"`
 	Indexers []string `json:"indexers"`
+	Timeout  float32  `json:"timeout"`
 }
 
 func main() {
@@ -87,6 +88,7 @@ func main() {
 		CrawlerConfing: config.CrawlerConfig{
 			Seeds:     Config.Seeds,
 			Recursive: Config.Recursive,
+			Timeout:   Config.Timeout,
 		},
 		FetcherService: fetcher,
 		ParserService:  parser,

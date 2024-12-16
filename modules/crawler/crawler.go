@@ -5,6 +5,7 @@ import (
 	"minimal-crawler/modules/fetcher"
 	"minimal-crawler/modules/parser"
 	"minimal-crawler/modules/storage"
+	"minimal-crawler/utils"
 	"sync"
 )
 
@@ -30,38 +31,41 @@ func (h *Handler) InitCrawler() {
 
 	// se recorre la lista de seeds que van a aser crawleadas
 	for _, seedMap := range h.CrawlerConfing.Seeds {
-		for url, deep := range seedMap {
+		for rawURL, deep := range seedMap {
 			// se agrega al grupo de goroutines
 			wg.Add(1)
 			// funcion anonima para lanzar una url por cada goroutine
-			go h.Crawler(url, deep)
+			go h.Crawler(rawURL, deep)
 		}
 	}
 }
 
-func (h *Handler) Crawler(url string, deep int) {
-	// los defer se resuelven el LIFO
-	var wgRecursive sync.WaitGroup
+func (h *Handler) Crawler(rawURL string, deep int) {
 	// hace el done despues del wait para esperar primero a que acaben sus hijos
 	defer wg.Done()
-	// el subpadre espera a sus hijos para tener un cierre ordenado en esta funcion recursiva
-	// despues ya hace el done
-	defer wgRecursive.Wait()
-
-	// agregar la url que se va a crawlear a la lista de dominios crawleados
-	mu.Lock()
-	crawledDomains = append(crawledDomains, url)
-	mu.Unlock()
 
 	// comprueba que la profundidad no sea menor a 0, si es asi simplemente acaba la funcion
 	// y se rompe la cadena de recursividad
 	if deep < 0 {
 		return
 	}
+
+	domain, err := utils.ExtractDomain(rawURL)
+	if err != nil {
+		config.Logger.Errorf("Error extracting domain: %v", err)
+		return
+	}
+
+	// agregar la url que se va a crawlear a la lista de dominios crawleados
+	flag := appendAndVerifyDomain(domain)
+	if !flag {
+		return
+	}
+
 	// restamos 1 a la profundidad
 	deep -= 1
 
-	htmlUTF8, err := h.FetcherService.Fetch(url)
+	htmlUTF8, err := h.FetcherService.Fetch(rawURL, h.CrawlerConfing.Timeout)
 	if err != nil {
 		config.Logger.Errorf("Error fetching url: %v", err)
 	}
@@ -71,8 +75,33 @@ func (h *Handler) Crawler(url string, deep int) {
 		config.Logger.Errorf("Error parsing url: %v", err)
 	}
 
-	config.Logger.Infof(string(parsedData))
+	// extraemos los dominios descubiertos y extraemos los que no hemos investigado
+	freeURLs, err := utils.VerifyDomains(crawledDomains, utils.ExtractURLs(parsedData))
+	if err != nil {
+		config.Logger.Errorf("Error verifying domains: %v", err)
+	}
 
+	// para visualizar el json formateado para hacer pruebas
+	/* 	dataByte, err := json.MarshalIndent(parsedData, "", "  ")
+	   	if err != nil {
+	   		return
+	   	}
+	   	config.Logger.Infof(string(dataByte)) */
+	/* 	dataByte, err := json.Marshal(data)
+	   	if err != nil {
+	   		return nil, err
+	   	} */
+
+	for _, val := range crawledDomains {
+		config.Logger.Infof(val)
+	}
+
+	for _, freeURL := range freeURLs {
+		// se agrega al grupo de goroutines
+		wg.Add(1)
+		// funcion anonima para lanzar una url por cada dominio libre
+		go h.Crawler(freeURL, deep)
+	}
 	// obtener los links que apuntan a dominios externos para
 	// empezar la recursividad y hacer un for recorriendolos y mandando
 	// a un subproceso por cada link de dominio externo al principal
@@ -82,4 +111,16 @@ func (h *Handler) Crawler(url string, deep int) {
 	// de salida de la recursividad
 
 	// storage al kafka-->consumidores-->namenode(nodo de entrada en hadoop)
+}
+
+func appendAndVerifyDomain(domain string) bool {
+	mu.Lock()
+	defer mu.Unlock()
+	for _, crawledDomain := range crawledDomains {
+		if crawledDomain == domain {
+			return false
+		}
+	}
+	crawledDomains = append(crawledDomains, domain)
+	return true
 }

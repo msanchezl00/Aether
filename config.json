@@ -1,8 +1,8 @@
 {
     "seeds":[
-        {"https://www.usal.es": 0},
-        {"https://www.unileon.es": 0},
-        {"https://www.ubu.es": 0}
+        {"https://www.usal.es": 1},
+        {"https://www.unileon.es": 1},
+        {"https://www.ubu.es": 1}
     ],
     "robots": true,
     "recursive": true,
@@ -15,5 +15,6 @@
     "indexers":[
         "localhost:8080",
         "localhost:8081"
-    ]
+    ],
+    "timeout": 3.2
 }

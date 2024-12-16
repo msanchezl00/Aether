@@ -10,8 +10,8 @@ type Service struct {
 	FetcherConfig config.FetcherConfig
 }
 
-func (s *Service) Fetch(url string) ([]byte, error) {
-	htmlUTF8, err := utils.GetRequest(url)
+func (s *Service) Fetch(url string, timeout float32) ([]byte, error) {
+	htmlUTF8, err := utils.GetRequest(url, timeout)
 	if err != nil {
 		return nil, err
 	}

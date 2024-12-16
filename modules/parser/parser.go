@@ -2,7 +2,6 @@ package parser
 
 import (
 	"bytes"
-	"encoding/json"
 	config "minimal-crawler/modules/config"
 	"strings"
 
@@ -13,7 +12,7 @@ type Service struct {
 	ParserConfig config.ParserConfig
 }
 
-func (s *Service) Parse(htmlUTF8 []byte) ([]byte, error) {
+func (s *Service) Parse(htmlUTF8 []byte) ([]map[string]map[string][]string, error) {
 
 	// se declara el datamap donde se guardara toda la informacion de la url en concreto
 	data := make([]map[string]map[string][]string, 0)
@@ -51,22 +50,10 @@ func (s *Service) Parse(htmlUTF8 []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	data = append(data, texts)
 
-	/* para visualizar el json formateado para hacer pruebas
-	dataByte, err := json.MarshalIndent(parsedData, "", "  ")
-	if err != nil {
-		return nil, err
-	}
-	*/
-
-	dataByte, err := json.Marshal(data)
-	if err != nil {
-		return nil, err
-	}
-
-	return dataByte, nil
+	return data, nil
 }
 
 func (s *Service) ParseLinks(doc *goquery.Document) (map[string]map[string][]string, error) {
