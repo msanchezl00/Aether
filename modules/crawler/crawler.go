@@ -1,13 +1,11 @@
 package crawler
 
 import (
-	"encoding/json"
 	config "minimal-crawler/modules/config"
 	"minimal-crawler/modules/fetcher"
 	"minimal-crawler/modules/parser"
 	"minimal-crawler/modules/storage"
 	"minimal-crawler/utils"
-	"os"
 	"sync"
 )
 
@@ -92,36 +90,36 @@ func (h *Handler) Crawler(rawURL string, crawledInternalURLs *[]string, isIntern
 	// add a log to count howmuch is discover in horiontal on this domain
 	config.Logger.Infof(rawURL+"--> %d", len(*crawledInternalURLs))
 
-	// para visualizar el json formateado para hacer pruebas
-	dataByte, err := json.MarshalIndent(parsedData, "", "  ")
-	if err != nil {
-		return
-	}
+	/* 	// para visualizar el json formateado para hacer pruebas
+	   	dataByte, err := json.MarshalIndent(parsedData, "", "  ")
+	   	if err != nil {
+	   		return
+	   	}
 
-	domain, err := utils.ExtractDomain(rawURL)
-	if err != nil {
-		config.Logger.Errorf("Error extracting domain: %v", err)
-		return
-	}
-	// Abrir el archivo en modo append (agregar)
-	file, err := os.OpenFile("data/"+domain+".txt", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
-	if err != nil {
-		return
-	}
+	   	domain, err := utils.ExtractDomain(rawURL)
+	   	if err != nil {
+	   		config.Logger.Errorf("Error extracting domain: %v", err)
+	   		return
+	   	}
+	   	// Abrir el archivo en modo append (agregar)
+	   	file, err := os.OpenFile("data/"+domain+".txt", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+	   	if err != nil {
+	   		return
+	   	}
 
-	_, err = file.Write([]byte("-------------------------------------------------" + rawURL + "-------------------------------------------------\n"))
-	if err != nil {
-		return
-	}
-	_, err = file.Write(dataByte)
-	if err != nil {
-		return
-	}
-	_, err = file.Write([]byte("--------------------------------------------------------------------------------------------------\n"))
-	if err != nil {
-		return
-	}
-	file.Close()
+	   	_, err = file.Write([]byte("-------------------------------------------------" + rawURL + "-------------------------------------------------\n"))
+	   	if err != nil {
+	   		return
+	   	}
+	   	_, err = file.Write(dataByte)
+	   	if err != nil {
+	   		return
+	   	}
+	   	_, err = file.Write([]byte("--------------------------------------------------------------------------------------------------\n"))
+	   	if err != nil {
+	   		return
+	   	}
+	   	file.Close() */
 
 	if deep >= 0 {
 		for _, freeURL := range freeExternalURLs {
