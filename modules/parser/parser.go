@@ -164,6 +164,7 @@ func (s *Service) ParseImages(doc *goquery.Document) (map[string]map[string][]st
 }
 
 func (s *Service) ParseTexts(doc *goquery.Document) (map[string]map[string][]string, error) {
+	// TODO aqui habria que obtener mas tipos de texto, como <div>, <article>, <ul>...
 	// map clave valor para con clave=metadata y como valor un vector de strings de la informacion de metadatos
 	texts := make(map[string]map[string][]string)
 	// inicializar el map interno

@@ -89,6 +89,7 @@ func (h *Handler) Crawler(rawURL string, crawledInternalURLs *[]string, isIntern
 		config.Logger.Errorf("Error verifying domains: %v", err)
 	}
 
+	// add a log to count howmuch is discover in horiontal on this domain
 	config.Logger.Infof(rawURL+"--> %d", len(*crawledInternalURLs))
 
 	// para visualizar el json formateado para hacer pruebas
@@ -131,8 +132,7 @@ func (h *Handler) Crawler(rawURL string, crawledInternalURLs *[]string, isIntern
 		}
 	}
 
-	// TODO en las freeInternalURLs estan las URLs internas que nop han sido crawleadas por esta goroutine, de esta manera llevamos el conteo, estas se agregan a
-	// crawledInternalURLs una vez se vayan ejecutando con una flag, de esta manera se agregan poco a poco segun se ejecuten
+	// crawling en horizontal por la misma goroutine
 	for _, freeInternalURL := range freeInternalURLs {
 		h.Crawler(freeInternalURL, crawledInternalURLs, true, deep)
 	}
