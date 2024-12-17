@@ -5,27 +5,27 @@ import (
 	"strings"
 )
 
-func VerifyDomains(crawledDomains []string, newRawUrls []string) ([]string, error) {
+func VerifyDomainsAndInternal(crawledDomains []string, newRawUrls []string, crawledInternalURLs []string, newInternalURLs []string, mainRawURL string) ([]string, []string, error) {
 	// Crear un mapa para los dominios crawled
-	crawledMap := make(map[string]struct{})
+	crawledDomainsMap := make(map[string]struct{})
 	for _, domain := range crawledDomains {
-		crawledMap[domain] = struct{}{}
+		crawledDomainsMap[domain] = struct{}{}
+	}
+
+	// Crear un mapa para las urls internas crawled
+	crawledInternalURLsMap := make(map[string]struct{})
+	for _, internalURL := range crawledInternalURLs {
+		crawledInternalURLsMap[internalURL] = struct{}{}
 	}
 
 	// Slice para almacenar los dominios no verificados
 	var notCrawledDomains []string
-
 	for _, rawURL := range newRawUrls {
 		domain, err := ExtractDomain(rawURL)
 		if err != nil {
-			return nil, err // Manejo de errores si ExtractDomain falla
+			return nil, nil, err // Manejo de errores si ExtractDomain falla
 		}
-		// Verificar si el dominio ya está en crawledDomains
-		// TODO verificar que no se introduzcan dominios repetidos en notcrawleddomains
-		// aunque esto ya se verifica al insertar dominio
-		// y pensar si poner aqui tambien un mutex aunque ya se mete al insertar dominio
-		// puede generar que vaya mas lento este todo.
-		if _, exists := crawledMap[domain]; !exists {
+		if _, exists := crawledDomainsMap[domain]; !exists {
 			scheme := "http://" // Valor por defecto
 			if strings.HasPrefix(rawURL, "https://") {
 				scheme = "https://"
@@ -36,7 +36,15 @@ func VerifyDomains(crawledDomains []string, newRawUrls []string) ([]string, erro
 		}
 	}
 
-	return notCrawledDomains, nil
+	// Slice para almacenar los urls internas no crawleadas
+	var notCrawledInternalURLs []string
+	for _, internalURL := range newInternalURLs {
+		if _, exists := crawledInternalURLsMap[internalURL]; !exists {
+			notCrawledInternalURLs = append(notCrawledInternalURLs, internalURL)
+		}
+	}
+
+	return notCrawledDomains, notCrawledInternalURLs, nil
 }
 
 func ExtractDomain(rawURL string) (string, error) {
@@ -47,7 +55,16 @@ func ExtractDomain(rawURL string) (string, error) {
 	return parsedURL.Hostname(), nil
 }
 
-func ExtractURLs(parsedData []map[string]map[string][]string) []string {
+func ExtractScheme(rawURL string) (string, error) {
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		return "", err
+	}
+
+	return parsedURL.Scheme, nil
+}
+
+func ExtractExternalURLs(parsedData []map[string]map[string][]string) []string {
 	var domains []string
 	for _, block := range parsedData {
 		if links, exists := block["links"]; exists {
@@ -61,4 +78,37 @@ func ExtractURLs(parsedData []map[string]map[string][]string) []string {
 		}
 	}
 	return domains
+}
+
+func ExtractInternalURLs(parsedData []map[string]map[string][]string, rawURL string) []string {
+
+	var updatedInternalURLs []string
+	var internalURLs []string
+	rawURLDomain, err := ExtractDomain(rawURL)
+	if err != nil {
+		return nil // Manejo de errores si ExtractDomain falla
+	}
+	rawURLPrefix, err := ExtractScheme(rawURL)
+	if err != nil {
+		return nil // Manejo de errores si ExtractDomain falla
+	}
+	for _, block := range parsedData {
+		if links, exists := block["links"]; exists {
+			// los puntos suspensivos es para expandir el slice ya que se le esta apendeando un vector de strings
+			if _, exists := links["internal"]; exists {
+				internalURLs = append(internalURLs, links["internal"]...)
+			}
+
+			for _, internalURL := range internalURLs {
+				if !strings.HasPrefix(internalURL, "//") && !strings.HasPrefix(internalURL, "mailto") && !strings.HasPrefix(internalURL, "tel") && !strings.HasPrefix(internalURL, "#") && internalURL != "" && internalURL != "/" {
+					if strings.HasPrefix(internalURL, "/") {
+						updatedInternalURLs = append(updatedInternalURLs, rawURLPrefix+"://"+rawURLDomain+internalURL)
+					} else {
+						updatedInternalURLs = append(updatedInternalURLs, rawURLPrefix+"://"+rawURLDomain+"/"+internalURL)
+					}
+				}
+			}
+		}
+	}
+	return updatedInternalURLs
 }

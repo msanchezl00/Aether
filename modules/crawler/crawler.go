@@ -1,11 +1,13 @@
 package crawler
 
 import (
+	"encoding/json"
 	config "minimal-crawler/modules/config"
 	"minimal-crawler/modules/fetcher"
 	"minimal-crawler/modules/parser"
 	"minimal-crawler/modules/storage"
 	"minimal-crawler/utils"
+	"os"
 	"sync"
 )
 
@@ -35,76 +37,105 @@ func (h *Handler) InitCrawler() {
 			// se agrega al grupo de goroutines
 			wg.Add(1)
 			// funcion anonima para lanzar una url por cada goroutine
-			go h.Crawler(rawURL, deep)
+			go h.Crawler(rawURL, &[]string{}, false, deep)
 		}
 	}
 }
 
-func (h *Handler) Crawler(rawURL string, deep int) {
-	// hace el done despues del wait para esperar primero a que acaben sus hijos
-	defer wg.Done()
+func (h *Handler) Crawler(rawURL string, crawledInternalURLs *[]string, isInternalURL bool, deep int) {
+	// si la url es interna se hace una cosa u otra
+	if !isInternalURL {
+		// hace el done despues del wait para esperar primero a que acaben sus hijos
+		defer wg.Done()
 
-	// comprueba que la profundidad no sea menor a 0, si es asi simplemente acaba la funcion
-	// y se rompe la cadena de recursividad
-	if deep < 0 {
-		return
+		// comprueba que la profundidad no sea menor a 0, si es asi simplemente acaba la funcion
+		// y se rompe la cadena de recursividad
+		if deep < 0 {
+			return
+		}
+
+		domain, err := utils.ExtractDomain(rawURL)
+		if err != nil {
+			config.Logger.Errorf("Error extracting domain: %v", err)
+			return
+		}
+
+		// agregar la url que se va a crawlear a la lista de dominios crawleados
+		flag := appendAndVerifyDomain(domain)
+		if !flag {
+			return
+		}
 	}
-	// restamos 1 a la profundidad
-	deep -= 1
 
-	domain, err := utils.ExtractDomain(rawURL)
-	if err != nil {
-		config.Logger.Errorf("Error extracting domain: %v", err)
-		return
-	}
-
-	// agregar la url que se va a crawlear a la lista de dominios crawleados
-	flag := appendAndVerifyDomain(domain)
+	// agregar la url que se va a crawlear a la lista de urls internas crawleadas
+	flag := appendAndVerifyInternalURL(crawledInternalURLs, rawURL)
 	if !flag {
 		return
 	}
 
 	htmlUTF8, err := h.FetcherService.Fetch(rawURL, h.CrawlerConfing.Timeout)
 	if err != nil {
-		config.Logger.Errorf("Error fetching url: %v", err)
+		config.Logger.Errorf("Error fetching url: %s Error: %v", rawURL, err)
 	}
 
 	parsedData, err := h.ParserService.Parse(htmlUTF8)
 	if err != nil {
-		config.Logger.Errorf("Error parsing url: %v", err)
+		config.Logger.Errorf("Error parsing url: %s Error: %v", rawURL, err)
 	}
 
 	// extraemos los dominios descubiertos y extraemos los que no hemos investigado
-	freeURLs, err := utils.VerifyDomains(crawledDomains, utils.ExtractURLs(parsedData))
+	freeExternalURLs, freeInternalURLs, err := utils.VerifyDomainsAndInternal(crawledDomains, utils.ExtractExternalURLs(parsedData), *crawledInternalURLs, utils.ExtractInternalURLs(parsedData, rawURL), rawURL)
 	if err != nil {
 		config.Logger.Errorf("Error verifying domains: %v", err)
 	}
 
+	config.Logger.Infof(rawURL+"--> %d", len(*crawledInternalURLs))
+
 	// para visualizar el json formateado para hacer pruebas
-	/* 	dataByte, err := json.MarshalIndent(parsedData, "", "  ")
-	   	if err != nil {
-	   		return
-	   	}
-	   	config.Logger.Infof(string(dataByte)) */
-	/* 	dataByte, err := json.Marshal(data)
-	   	if err != nil {
-	   		return nil, err
-	   	} */
-
-	for _, val := range crawledDomains {
-		config.Logger.Infof(val)
+	dataByte, err := json.MarshalIndent(parsedData, "", "  ")
+	if err != nil {
+		return
 	}
 
-	for _, freeURL := range freeURLs {
-		// se agrega al grupo de goroutines
-		wg.Add(1)
-		// funcion anonima para lanzar una url por cada dominio libre
-		go h.Crawler(freeURL, deep)
+	domain, err := utils.ExtractDomain(rawURL)
+	if err != nil {
+		config.Logger.Errorf("Error extracting domain: %v", err)
+		return
+	}
+	// Abrir el archivo en modo append (agregar)
+	file, err := os.OpenFile("data/"+domain+".txt", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+	if err != nil {
+		return
 	}
 
-	// TODO ver una forma de explorar en horizontal, en la estructura de datos [links][internal] e ir concatenandolos a la rawURL principal y repetir los pasos anteriores
-	// y que de alguna forma haya una recursividad pero esta vez con la misma goroutina sin llamar a otras para esta recursividad, como hacer recursividad pero con un solo hilo
-	// podria verificarse que si una url no es solo bbase y tiene cosas concatenadas no se verifica si esta en la lista ni se agrega, ya que proviese de una base o algo asi
+	_, err = file.Write([]byte("-------------------------------------------------" + rawURL + "-------------------------------------------------\n"))
+	if err != nil {
+		return
+	}
+	_, err = file.Write(dataByte)
+	if err != nil {
+		return
+	}
+	_, err = file.Write([]byte("--------------------------------------------------------------------------------------------------\n"))
+	if err != nil {
+		return
+	}
+	file.Close()
+
+	if deep >= 0 {
+		for _, freeURL := range freeExternalURLs {
+			// se agrega al grupo de goroutines
+			wg.Add(1)
+			// funcion anonima para lanzar una url por cada dominio libre
+			go h.Crawler(freeURL, &[]string{}, false, deep-1)
+		}
+	}
+
+	// TODO en las freeInternalURLs estan las URLs internas que nop han sido crawleadas por esta goroutine, de esta manera llevamos el conteo, estas se agregan a
+	// crawledInternalURLs una vez se vayan ejecutando con una flag, de esta manera se agregan poco a poco segun se ejecuten
+	for _, freeInternalURL := range freeInternalURLs {
+		h.Crawler(freeInternalURL, crawledInternalURLs, true, deep)
+	}
 
 	// storage al kafka-->consumidores-->namenode(nodo de entrada en hadoop)
 }
@@ -118,5 +149,15 @@ func appendAndVerifyDomain(domain string) bool {
 		}
 	}
 	crawledDomains = append(crawledDomains, domain)
+	return true
+}
+
+func appendAndVerifyInternalURL(crawledInternalURLs *[]string, internalURL string) bool {
+	for _, crawledInternalURL := range *crawledInternalURLs {
+		if crawledInternalURL == internalURL {
+			return false
+		}
+	}
+	*crawledInternalURLs = append(*crawledInternalURLs, internalURL)
 	return true
 }
