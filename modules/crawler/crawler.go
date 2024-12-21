@@ -33,6 +33,7 @@ func (h *Handler) InitCrawler() {
 
 	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		// se recorre la lista de seeds que van a aser crawleadas
 		for _, seedMap := range h.CrawlerConfing.Seeds {
 			for rawURL, deep := range seedMap {
@@ -83,17 +84,20 @@ func (h *Handler) Crawler(rawURL string, crawledInternalURLs *[]string, isIntern
 	htmlUTF8, err := h.FetcherService.Fetch(rawURL, h.CrawlerConfing.Timeout)
 	if err != nil {
 		config.Logger.Errorf("Error fetching url: %s Error: %v", rawURL, err)
+		return
 	}
 
 	parsedData, err := h.ParserService.Parse(htmlUTF8)
 	if err != nil {
 		config.Logger.Errorf("Error parsing url: %s Error: %v", rawURL, err)
+		return
 	}
 
 	// extraemos los dominios descubiertos y extraemos los que no hemos investigado
 	freeExternalURLs, freeInternalURLs, err := utils.VerifyDomainsAndInternal(crawledDomains, utils.ExtractExternalURLs(parsedData), *crawledInternalURLs, utils.ExtractInternalURLs(parsedData, rawURL), rawURL)
 	if err != nil {
 		config.Logger.Errorf("Error verifying domains: %v", err)
+		return
 	}
 
 	// add a log to count howmuch is discover in horiontal on this domain
@@ -129,7 +133,9 @@ func (h *Handler) Crawler(rawURL string, crawledInternalURLs *[]string, isIntern
 	   		return
 	   	}
 	   	file.Close() */
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		if deep >= 0 {
 			for _, freeURL := range freeExternalURLs {
 				// se agrega al grupo de goroutines
