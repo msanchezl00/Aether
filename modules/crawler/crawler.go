@@ -133,6 +133,8 @@ func (h *Handler) Crawler(rawURL string, crawledInternalURLs *[]string, isIntern
 	   		return
 	   	}
 	   	file.Close() */
+	// TODO se le podria dar otro enfoque ya que aun asi se siguen creando muchas goroutiners que se quedan esperando,
+	//seria mejor crear una lista global con dominios no crawleados y que cada vez que uno acabe vaya comprobando si puede lanzarlos
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
