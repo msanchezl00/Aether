@@ -24,6 +24,7 @@ var Config struct {
 	} `json:"data"`
 	Indexers []string `json:"indexers"`
 	Timeout  float32  `json:"timeout"`
+	Workers  int32    `json:"workers"`
 }
 
 func main() {
@@ -89,6 +90,7 @@ func main() {
 			Seeds:     Config.Seeds,
 			Recursive: Config.Recursive,
 			Timeout:   Config.Timeout,
+			Workers:   Config.Workers,
 		},
 		FetcherService: fetcher,
 		ParserService:  parser,

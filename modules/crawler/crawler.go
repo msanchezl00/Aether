@@ -17,6 +17,7 @@ type Handler struct {
 }
 
 // variable para tener controlados los subprocesos por parte del padre maestro y esperar a su muerte de forma ordenada
+var pool chan struct{}
 var wg sync.WaitGroup
 var mu sync.Mutex
 var crawledDomains []string
@@ -27,22 +28,30 @@ func (h *Handler) InitCrawler() {
 	// proceso padre espera a que las goroutines mueran
 	defer wg.Wait()
 
+	pool = make(chan struct{}, h.CrawlerConfing.Workers)
 	config.Logger.Info("crawler started successfully")
 
-	// se recorre la lista de seeds que van a aser crawleadas
-	for _, seedMap := range h.CrawlerConfing.Seeds {
-		for rawURL, deep := range seedMap {
-			// se agrega al grupo de goroutines
-			wg.Add(1)
-			// funcion anonima para lanzar una url por cada goroutine
-			go h.Crawler(rawURL, &[]string{}, false, deep)
+	wg.Add(1)
+	go func() {
+		// se recorre la lista de seeds que van a aser crawleadas
+		for _, seedMap := range h.CrawlerConfing.Seeds {
+			for rawURL, deep := range seedMap {
+				// se agrega al grupo de goroutines
+				wg.Add(1)
+				pool <- struct{}{}
+				// funcion anonima para lanzar una url por cada goroutine
+				go h.Crawler(rawURL, &[]string{}, false, deep)
+			}
 		}
-	}
+	}()
+
 }
 
 func (h *Handler) Crawler(rawURL string, crawledInternalURLs *[]string, isInternalURL bool, deep int) {
 	// si la url es interna se hace una cosa u otra
 	if !isInternalURL {
+		// liberamos espacio en el pool
+		defer func() { <-pool }()
 		// hace el done despues del wait para esperar primero a que acaben sus hijos
 		defer wg.Done()
 
@@ -120,15 +129,17 @@ func (h *Handler) Crawler(rawURL string, crawledInternalURLs *[]string, isIntern
 	   		return
 	   	}
 	   	file.Close() */
-
-	if deep >= 0 {
-		for _, freeURL := range freeExternalURLs {
-			// se agrega al grupo de goroutines
-			wg.Add(1)
-			// funcion anonima para lanzar una url por cada dominio libre
-			go h.Crawler(freeURL, &[]string{}, false, deep-1)
+	go func() {
+		if deep >= 0 {
+			for _, freeURL := range freeExternalURLs {
+				// se agrega al grupo de goroutines
+				wg.Add(1)
+				pool <- struct{}{}
+				// funcion anonima para lanzar una url por cada dominio libre
+				go h.Crawler(freeURL, &[]string{}, false, deep-1)
+			}
 		}
-	}
+	}()
 
 	// crawling en horizontal por la misma goroutine
 	for _, freeInternalURL := range freeInternalURLs {

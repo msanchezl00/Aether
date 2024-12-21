@@ -1,6 +1,6 @@
 {
     "seeds":[
-        {"https://www.usal.es": 0},
+        {"https://www.usal.es": 1},
         {"https://www.unileon.es": 0},
         {"https://www.ubu.es": 0}
     ],
@@ -16,5 +16,6 @@
         "localhost:8080",
         "localhost:8081"
     ],
-    "timeout": 3.2
+    "timeout": 3.2,
+    "workers": 3
 }
