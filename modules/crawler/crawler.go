@@ -93,7 +93,7 @@ func (h *Handler) Crawler(rawURL string, crawledInternalURLs *[]string, isIntern
 		return
 	}
 
-	// storage al kafka-->consumidores-->namenode(nodo de entrada en hadoop)
+	// STORAGE al kafka-->consumidores-->namenode(nodo de entrada en hadoop)
 
 	// extraemos los dominios descubiertos y extraemos los que no hemos investigado
 	freeExternalURLs, freeInternalURLs, err := utils.VerifyDomainsAndInternal(crawledDomains, utils.ExtractExternalURLs(parsedData), *crawledInternalURLs, utils.ExtractInternalURLs(parsedData, rawURL), rawURL)
