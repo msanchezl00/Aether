@@ -112,3 +112,13 @@ func ExtractInternalURLs(parsedData []map[string]map[string][]string, rawURL str
 	}
 	return updatedInternalURLs
 }
+
+func RemoveDomain(slice []string, domain string) []string {
+	for i, notCrawledURL := range slice {
+		notCrawledDomain, _ := ExtractDomain(notCrawledURL)
+		if notCrawledDomain == domain {
+			return append(slice[:i], slice[i+1:]...)
+		}
+	}
+	return slice
+}

@@ -21,6 +21,7 @@ var pool chan struct{}
 var wg sync.WaitGroup
 var mu sync.Mutex
 var crawledDomains []string
+var notCrawledDomains []string
 
 func (h *Handler) InitCrawler() {
 	// los defer se resuelven el LIFO
@@ -45,7 +46,6 @@ func (h *Handler) InitCrawler() {
 			}
 		}
 	}()
-
 }
 
 func (h *Handler) Crawler(rawURL string, crawledInternalURLs *[]string, isInternalURL bool, deep int) {
@@ -69,7 +69,7 @@ func (h *Handler) Crawler(rawURL string, crawledInternalURLs *[]string, isIntern
 		}
 
 		// agregar la url que se va a crawlear a la lista de dominios crawleados
-		flag := appendAndVerifyDomain(domain)
+		flag := appendAndVerifyCrawledDomain(domain)
 		if !flag {
 			return
 		}
@@ -93,6 +93,8 @@ func (h *Handler) Crawler(rawURL string, crawledInternalURLs *[]string, isIntern
 		return
 	}
 
+	// storage al kafka-->consumidores-->namenode(nodo de entrada en hadoop)
+
 	// extraemos los dominios descubiertos y extraemos los que no hemos investigado
 	freeExternalURLs, freeInternalURLs, err := utils.VerifyDomainsAndInternal(crawledDomains, utils.ExtractExternalURLs(parsedData), *crawledInternalURLs, utils.ExtractInternalURLs(parsedData, rawURL), rawURL)
 	if err != nil {
@@ -100,73 +102,68 @@ func (h *Handler) Crawler(rawURL string, crawledInternalURLs *[]string, isIntern
 		return
 	}
 
-	// add a log to count howmuch is discover in horiontal on this domain
-	config.Logger.Infof(rawURL+"--> %d", len(*crawledInternalURLs))
+	// appendea los dominios libres encontrados a la lista de dominios no crawleados
+	appendAndVerifyNotCrawledDomains(freeExternalURLs)
 
-	/* 	// para visualizar el json formateado para hacer pruebas
-	   	dataByte, err := json.MarshalIndent(parsedData, "", "  ")
-	   	if err != nil {
-	   		return
-	   	}
-
-	   	domain, err := utils.ExtractDomain(rawURL)
-	   	if err != nil {
-	   		config.Logger.Errorf("Error extracting domain: %v", err)
-	   		return
-	   	}
-	   	// Abrir el archivo en modo append (agregar)
-	   	file, err := os.OpenFile("data/"+domain+".txt", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
-	   	if err != nil {
-	   		return
-	   	}
-
-	   	_, err = file.Write([]byte("-------------------------------------------------" + rawURL + "-------------------------------------------------\n"))
-	   	if err != nil {
-	   		return
-	   	}
-	   	_, err = file.Write(dataByte)
-	   	if err != nil {
-	   		return
-	   	}
-	   	_, err = file.Write([]byte("--------------------------------------------------------------------------------------------------\n"))
-	   	if err != nil {
-	   		return
-	   	}
-	   	file.Close() */
-	// TODO se le podria dar otro enfoque ya que aun asi se siguen creando muchas goroutiners que se quedan esperando,
-	//seria mejor crear una lista global con dominios no crawleados y que cada vez que uno acabe vaya comprobando si puede lanzarlos
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if deep >= 0 {
-			for _, freeURL := range freeExternalURLs {
+	if deep >= 0 {
+		mu.Lock()
+		for _, notCrawledDomain := range notCrawledDomains {
+			select {
+			case pool <- struct{}{}: // Intenta enviar un valor al canal
 				// se agrega al grupo de goroutines
 				wg.Add(1)
-				pool <- struct{}{}
-				// funcion anonima para lanzar una url por cada dominio libre
-				go h.Crawler(freeURL, &[]string{}, false, deep-1)
+				// lanza una gorotine para crawlear un dominio nuevo
+				go h.Crawler(notCrawledDomain, &[]string{}, false, deep-1)
+			default:
 			}
 		}
-	}()
+		mu.Unlock()
+	}
 
 	// crawling en horizontal por la misma goroutine
 	for _, freeInternalURL := range freeInternalURLs {
 		h.Crawler(freeInternalURL, crawledInternalURLs, true, deep)
 	}
-
-	// storage al kafka-->consumidores-->namenode(nodo de entrada en hadoop)
 }
 
-func appendAndVerifyDomain(domain string) bool {
+func appendAndVerifyCrawledDomain(domain string) bool {
 	mu.Lock()
 	defer mu.Unlock()
+
+	notCrawledDomains = utils.RemoveDomain(notCrawledDomains, domain)
+
 	for _, crawledDomain := range crawledDomains {
 		if crawledDomain == domain {
 			return false
 		}
 	}
+
 	crawledDomains = append(crawledDomains, domain)
 	return true
+}
+
+func appendAndVerifyNotCrawledDomains(notCrawledURLsAux []string) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	notCrawledMap := make(map[string]struct{})
+	for _, domain := range notCrawledDomains {
+		notCrawledMap[domain] = struct{}{}
+	}
+
+	CrawledMap := make(map[string]struct{})
+	for _, domain := range crawledDomains {
+		CrawledMap[domain] = struct{}{}
+	}
+
+	for _, notCrawledURLAux := range notCrawledURLsAux {
+		notCrawledDomainAux, _ := utils.ExtractDomain(notCrawledURLAux)
+		if _, exists := notCrawledMap[notCrawledURLAux]; !exists {
+			if _, exists := CrawledMap[notCrawledDomainAux]; !exists {
+				notCrawledDomains = append(notCrawledDomains, notCrawledURLAux)
+			}
+		}
+	}
 }
 
 func appendAndVerifyInternalURL(crawledInternalURLs *[]string, internalURL string) bool {
@@ -178,3 +175,37 @@ func appendAndVerifyInternalURL(crawledInternalURLs *[]string, internalURL strin
 	*crawledInternalURLs = append(*crawledInternalURLs, internalURL)
 	return true
 }
+
+// add a log to count howmuch is discover in horiontal on this domain
+//config.Logger.Infof(rawURL+"--> %d", len(*crawledInternalURLs))
+
+/* 	// para visualizar el json formateado para hacer pruebas
+   	dataByte, err := json.MarshalIndent(parsedData, "", "  ")
+   	if err != nil {
+   		return
+   	}
+
+   	domain, err := utils.ExtractDomain(rawURL)
+   	if err != nil {
+   		config.Logger.Errorf("Error extracting domain: %v", err)
+   		return
+   	}
+   	// Abrir el archivo en modo append (agregar)
+   	file, err := os.OpenFile("data/"+domain+".txt", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+   	if err != nil {
+   		return
+   	}
+
+   	_, err = file.Write([]byte("-------------------------------------------------" + rawURL + "-------------------------------------------------\n"))
+   	if err != nil {
+   		return
+   	}
+   	_, err = file.Write(dataByte)
+   	if err != nil {
+   		return
+   	}
+   	_, err = file.Write([]byte("--------------------------------------------------------------------------------------------------\n"))
+   	if err != nil {
+   		return
+   	}
+   	file.Close() */
