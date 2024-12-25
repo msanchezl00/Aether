@@ -73,6 +73,8 @@ func (h *Handler) Crawler(rawURL string, crawledInternalURLs *[]string, isIntern
 		if !flag {
 			return
 		}
+		// si de verdad el dominio no ha sido crawleado, pasara por aqui por eso lo escribo aqui
+		defer config.Logger.Infof("Finished crwled domain: %v", rawURL)
 	}
 
 	// agregar la url que se va a crawlear a la lista de urls internas crawleadas
