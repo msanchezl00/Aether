@@ -1,5 +1,6 @@
 package config
 
 type StorageConfig struct {
-	Indexers []string
+	Indexers      []string
+	ProducerTopic string
 }

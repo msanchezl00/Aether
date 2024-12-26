@@ -16,6 +16,7 @@
         "localhost:8080",
         "localhost:8081"
     ],
+    "producer-topic": "crawled_data",
     "timeout": 3.2,
     "workers": 3
 }
