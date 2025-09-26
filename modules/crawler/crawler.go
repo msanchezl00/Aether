@@ -95,7 +95,11 @@ func (h *Handler) Crawler(rawURL string, crawledInternalURLs *[]string, isIntern
 		return
 	}
 
-	// STORAGE al kafka-->consumidores-->namenode(nodo de entrada en hadoop)
+	err = h.StorageService.KafkaStorage(utils.BuildPayload(rawURL, parsedData), 0)
+	if err != nil {
+		config.Logger.Errorf("Error storing url: %s Error: %v", rawURL, err)
+		return
+	}
 
 	// extraemos los dominios descubiertos y extraemos los que no hemos investigado
 	freeExternalURLs, freeInternalURLs, err := utils.VerifyDomainsAndInternal(crawledDomains, utils.ExtractExternalURLs(parsedData), *crawledInternalURLs, utils.ExtractInternalURLs(parsedData, rawURL), rawURL)

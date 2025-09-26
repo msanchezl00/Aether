@@ -2,7 +2,6 @@ package storage
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 	"sync"
 	"time"
@@ -27,23 +26,32 @@ func (s *Service) initWriter() {
 	})
 }
 
-func (s *Service) Storage(payload []map[string]map[string][]string) error {
+// recursivo con índice de intento
+func (s *Service) KafkaStorage(payload []byte, attempt int) error {
 	s.initWriter()
-
-	// serializar a JSON
-	value, err := json.Marshal(payload)
-	if err != nil {
-		return err
-	}
 
 	msg := kafka.Message{
 		Topic: s.StorageConfig.ProducerTopic,
-		Key:   []byte("key-" + s.StorageConfig.ProducerTopic),
-		Value: value,
+		Key:   nil,
+		Value: payload,
 		Time:  time.Now().UTC(),
 	}
 
-	return s.writer.WriteMessages(context.Background(), msg)
+	err := s.writer.WriteMessages(context.Background(), msg)
+	if err == nil {
+		return nil
+	}
+
+	if attempt >= len(s.StorageConfig.RetryDelays) {
+		log.Printf("error final enviando a Kafka: %v", err)
+		return err
+	}
+
+	delay := s.StorageConfig.RetryDelays[attempt]
+	log.Printf("error enviando a Kafka, reintentando en %s: %v", delay, err)
+	time.Sleep(delay)
+
+	return s.KafkaStorage(payload, attempt+1)
 }
 
 func (s *Service) Close() {

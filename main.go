@@ -9,6 +9,7 @@ import (
 	parser "minimal-crawler/modules/parser"
 	storage "minimal-crawler/modules/storage"
 	"os"
+	"time"
 )
 
 // estructura de la configuracion del json
@@ -24,6 +25,7 @@ var Config struct {
 	} `json:"data"`
 	Brokers       []string `json:"brokers"`
 	ProducerTopic string   `json:"producer-topic"`
+	RetryDelays   []int    `json:"retryDelays"`
 	Timeout       float32  `json:"timeout"`
 	Workers       int32    `json:"workers"`
 }
@@ -76,11 +78,17 @@ func main() {
 		},
 	}
 
+	var retryDurations []time.Duration
+	for _, ms := range Config.RetryDelays {
+		retryDurations = append(retryDurations, time.Duration(ms)*time.Millisecond)
+	}
+
 	// creacion del storage
 	storage := &storage.Service{
 		StorageConfig: config.StorageConfig{
 			Brokers:       Config.Brokers,
 			ProducerTopic: Config.ProducerTopic,
+			RetryDelays:   retryDurations,
 		},
 	}
 

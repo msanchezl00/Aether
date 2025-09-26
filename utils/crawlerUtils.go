@@ -1,8 +1,11 @@
 package utils
 
 import (
+	"encoding/json"
+	"minimal-crawler/models"
 	"net/url"
 	"strings"
+	"time"
 )
 
 func VerifyDomainsAndInternal(crawledDomains []string, newRawUrls []string, crawledInternalURLs []string, newInternalURLs []string, mainRawURL string) ([]string, []string, error) {
@@ -121,4 +124,17 @@ func RemoveDomain(slice []string, domain string) []string {
 		}
 	}
 	return slice
+}
+
+func BuildPayload(rawURL string, payload []map[string]map[string][]string) []byte {
+
+	wrapped := models.KafkaPayload{
+		URL:       rawURL,
+		Timestamp: time.Now().UTC(),
+		Payload:   payload,
+	}
+
+	value, _ := json.Marshal(wrapped)
+
+	return value
 }
