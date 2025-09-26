@@ -1,5 +1,5 @@
 package storage
 
 type StorageInterface interface {
-	Storage()
+	Storage(payload []map[string]map[string][]string) error
 }

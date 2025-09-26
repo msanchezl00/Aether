@@ -22,7 +22,7 @@ var Config struct {
 		Text     bool `json:"text"`
 		Images   bool `json:"images"`
 	} `json:"data"`
-	Indexers      []string `json:"indexers"`
+	Brokers       []string `json:"brokers"`
 	ProducerTopic string   `json:"producer-topic"`
 	Timeout       float32  `json:"timeout"`
 	Workers       int32    `json:"workers"`
@@ -79,7 +79,7 @@ func main() {
 	// creacion del storage
 	storage := &storage.Service{
 		StorageConfig: config.StorageConfig{
-			Indexers:      Config.Indexers,
+			Brokers:       Config.Brokers,
 			ProducerTopic: Config.ProducerTopic,
 		},
 	}
