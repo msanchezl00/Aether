@@ -1,2 +1,4 @@
 main
-DUDAS
+.DS_Store
+node_modules
+dist        
