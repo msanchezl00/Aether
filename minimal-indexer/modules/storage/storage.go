@@ -38,7 +38,4 @@ func (s *Service) KafkaConsumer() error {
 		// Mostrar el mensaje recibido
 		fmt.Printf("Mensaje recibido: Key: %s, Value: %s\n", string(m.Key), string(m.Value))
 	}
-
-	// Cerrar el lector (no se llega aquí debido al bucle infinito)
-	defer s.reader.Close()
 }
