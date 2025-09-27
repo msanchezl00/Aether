@@ -2,9 +2,8 @@ package storage
 
 import (
 	"context"
-	"fmt"
-	"log"
 	"sync"
+	"time"
 
 	config "minimal-indexer/modules/config"
 
@@ -12,30 +11,52 @@ import (
 )
 
 type Service struct {
-	reader        *kafka.Reader
+	writer        *kafka.Writer
 	once          sync.Once
 	StorageConfig config.StorageConfig
 }
 
-func (s *Service) initReader() {
+func (s *Service) initWriter() {
 	s.once.Do(func() {
-		s.reader = kafka.NewReader(kafka.ReaderConfig{
-			Brokers: s.StorageConfig.Brokers,       // Dirección de Kafka
-			Topic:   s.StorageConfig.ConsumerTopic, // Nombre del tópico
-			GroupID: "consumer-group",              // ID de grupo de consumidores
+		s.writer = kafka.NewWriter(kafka.WriterConfig{
+			Brokers:  s.StorageConfig.Brokers,
+			Balancer: &kafka.LeastBytes{},
 		})
 	})
 }
 
 // recursivo con índice de intento
-func (s *Service) KafkaConsumer() error {
-	// Leer mensajes del tópico
-	for {
-		m, err := s.reader.ReadMessage(context.Background())
-		if err != nil {
-			log.Fatalf("Error al leer mensaje: %v\n", err)
+func (s *Service) KafkaStorage(payload []byte, attempt int) error {
+	s.initWriter()
+
+	msg := kafka.Message{
+		Topic: s.StorageConfig.ProducerTopic,
+		Key:   nil,
+		Value: payload,
+		Time:  time.Now().UTC(),
+	}
+
+	err := s.writer.WriteMessages(context.Background(), msg)
+	if err == nil {
+		return nil
+	}
+
+	if attempt >= len(s.StorageConfig.RetryDelays) {
+		config.Logger.Errorf("error final enviando a Kafka: %v", err)
+		return err
+	}
+
+	delay := s.StorageConfig.RetryDelays[attempt]
+	config.Logger.Errorf("error enviando a Kafka, reintentando en %s: %v", delay, err)
+	time.Sleep(delay)
+
+	return s.KafkaStorage(payload, attempt+1)
+}
+
+func (s *Service) Close() {
+	if s.writer != nil {
+		if err := s.writer.Close(); err != nil {
+			config.Logger.Errorf("error cerrando writer: %v", err)
 		}
-		// Mostrar el mensaje recibido
-		fmt.Printf("Mensaje recibido: Key: %s, Value: %s\n", string(m.Key), string(m.Value))
 	}
 }

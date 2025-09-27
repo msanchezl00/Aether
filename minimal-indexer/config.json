@@ -4,5 +4,6 @@
         "localhost:8081"
     ],
     "producer-topic": "parquet_data",
-    "consumer-topic": "crawled_data"
+    "consumer-topic": "crawled_data",
+    "retryDelays": [1000, 2000, 5000]
 }
