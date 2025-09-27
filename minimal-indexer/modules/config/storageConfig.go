@@ -1,5 +1,7 @@
 package config
 
 type StorageConfig struct {
-	Brokers []string
+	Brokers       []string
+	ProducerTopic string
+	ConsumerTopic string
 }
