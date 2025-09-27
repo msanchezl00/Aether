@@ -2,7 +2,6 @@ package storage
 
 import (
 	"context"
-	"log"
 	"sync"
 	"time"
 
@@ -43,12 +42,12 @@ func (s *Service) KafkaStorage(payload []byte, attempt int) error {
 	}
 
 	if attempt >= len(s.StorageConfig.RetryDelays) {
-		log.Printf("error final enviando a Kafka: %v", err)
+		config.Logger.Errorf("error final enviando a Kafka: %v", err)
 		return err
 	}
 
 	delay := s.StorageConfig.RetryDelays[attempt]
-	log.Printf("error enviando a Kafka, reintentando en %s: %v", delay, err)
+	config.Logger.Errorf("error enviando a Kafka, reintentando en %s: %v", delay, err)
 	time.Sleep(delay)
 
 	return s.KafkaStorage(payload, attempt+1)
@@ -57,7 +56,7 @@ func (s *Service) KafkaStorage(payload []byte, attempt int) error {
 func (s *Service) Close() {
 	if s.writer != nil {
 		if err := s.writer.Close(); err != nil {
-			log.Printf("error cerrando writer: %v", err)
+			config.Logger.Errorf("error cerrando writer: %v", err)
 		}
 	}
 }
