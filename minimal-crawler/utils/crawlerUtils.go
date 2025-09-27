@@ -128,7 +128,7 @@ func RemoveDomain(slice []string, domain string) []string {
 
 func BuildPayload(rawURL string, payload []map[string]map[string][]string) []byte {
 
-	wrapped := models.KafkaPayload{
+	wrapped := models.KafkaCrawlerPayload{
 		URL:       rawURL,
 		Timestamp: time.Now().UTC(),
 		Payload:   payload,
