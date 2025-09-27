@@ -1,0 +1,8 @@
+{
+    "brokers":[
+        "localhost:8080",
+        "localhost:8081"
+    ],
+    "producer-topic": "parquet_data",
+    "consumer-topic": "crawled_data"
+}
