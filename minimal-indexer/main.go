@@ -13,6 +13,7 @@ var Config struct {
 	ProducerTopic string   `json:"producer-topic"`
 	ConsumerTopic string   `json:"consumer-topic"`
 	RetryDelays   []int    `json:"retryDelays"`
+	Workers       int      `json:"workers"`
 }
 
 func main() {

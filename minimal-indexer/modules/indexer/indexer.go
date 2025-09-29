@@ -1,11 +1,20 @@
 package indexer
 
 import (
+	"context"
+	"encoding/json"
+	models "minimal-indexer/Models"
 	config "minimal-indexer/modules/config"
 	"minimal-indexer/modules/consumer"
 	"minimal-indexer/modules/storage"
 	"minimal-indexer/modules/transformer"
+	"sync"
+
+	"github.com/segmentio/kafka-go"
 )
+
+var pool chan struct{}
+var wg sync.WaitGroup
 
 type Handler struct {
 	IndexerConfig      config.IndexerConfig
@@ -14,10 +23,46 @@ type Handler struct {
 	ConsumerService    consumer.ConsumerInterface
 }
 
-func (s *Handler) InitIndexer(url string, timeout float32) (bool, error) {
-	return true, nil
+func (h *Handler) InitIndexer(ctx context.Context) error {
+	numWorkers := h.IndexerConfig.Workers
+	pool = make(chan struct{}, numWorkers)
+
+	config.Logger.Infof("indexer started with %d workers", numWorkers)
+
+	// consumer loop
+	go func() {
+		err := h.ConsumerService.Consumer(ctx, func(m kafka.Message) {
+			var payload models.KafkaCrawlerPayload
+			if err := json.Unmarshal(m.Value, &payload); err != nil {
+				config.Logger.Errorf("error parseando payload: %v", err)
+				return
+			}
+
+			pool <- struct{}{} // ocupa slot ya que va a agregar una goroutine
+			wg.Add(1)
+			go func(p models.KafkaCrawlerPayload) {
+				defer wg.Done()
+				defer func() { <-pool }() // libera slot ya que esa goroutine ha acabado su trabajo
+				h.Indexer(p)
+			}(payload)
+		})
+		if err != nil {
+			config.Logger.Errorf("consumer error: %v", err)
+		}
+	}()
+
+	return nil
 }
 
-func (h *Handler) Indexer() error {
-	return nil
+func (h *Handler) Indexer(payload models.KafkaCrawlerPayload) {
+
+	payloadProcessed, err := h.TransformerService.Transform(payload)
+	if err != nil {
+		config.Logger.Errorf("error transform payload: %v", err)
+	}
+
+	err = h.StorageService.KafkaStorage(payloadProcessed, 0)
+	if err != nil {
+		config.Logger.Errorf("error storage payload: %v", err)
+	}
 }
