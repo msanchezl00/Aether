@@ -1,5 +1,7 @@
 # 🚀 Minimal-Crawler 🚀
 
+[Go Producer] --> [Kafka Broker(s)] --> [Kafka Connect] --> [HDFS]
+
 Este proyecto es un minimal crawler modular diseñado para capturar, procesar y almacenar datos de páginas web. El sistema está dividido en tres componentes principales: Fetcher, Parser y Storage, cada uno con responsabilidades claramente definidas. A continuación, encontrarás una explicación detallada de cómo funciona cada parte y cómo se integran entre sí.
 
 ## 🛠️ Arquitectura del Crawler
