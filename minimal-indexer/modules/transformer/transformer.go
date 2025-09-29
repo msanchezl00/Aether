@@ -9,6 +9,6 @@ type Service struct {
 	TransformerConfig config.TransformerConfig
 }
 
-func (s *Service) Transform(payload models.KafkaCrawlerPayload) ([]byte, error) {
-	return []byte{}, nil
+func (s *Service) Transform(payload models.KafkaCrawlerPayload) (models.KafkaIndexerPayload, error) {
+	return models.KafkaIndexerPayload{}, nil
 }

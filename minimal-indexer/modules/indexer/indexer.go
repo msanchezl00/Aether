@@ -8,6 +8,7 @@ import (
 	"minimal-indexer/modules/consumer"
 	"minimal-indexer/modules/storage"
 	"minimal-indexer/modules/transformer"
+	"minimal-indexer/utils"
 	"sync"
 
 	"github.com/segmentio/kafka-go"
@@ -56,12 +57,14 @@ func (h *Handler) InitIndexer(ctx context.Context) error {
 
 func (h *Handler) Indexer(payload models.KafkaCrawlerPayload) {
 
+	// se transforma la informacion recibida de los crawlers a un formato apto para el almacenamiento en HDFS
 	payloadProcessed, err := h.TransformerService.Transform(payload)
 	if err != nil {
 		config.Logger.Errorf("error transform payload: %v", err)
 	}
 
-	err = h.StorageService.KafkaStorage(payloadProcessed, 0)
+	// se almacena la informacion transformada en Kafka para que luego Kafka Connect la lleve a HDFS
+	err = h.StorageService.KafkaStorage(utils.BuildPayload(payloadProcessed), 0)
 	if err != nil {
 		config.Logger.Errorf("error storage payload: %v", err)
 	}
