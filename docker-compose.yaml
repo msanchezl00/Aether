@@ -1,54 +1,149 @@
-version: '3.8'
+networks:
+  aether-network:
+volumes:
+  kafka-logs:
+  hdfs-namenode:
+  hdfs-datanode:
 
 services:
+
+  # Zookeeper es el que gestiona el flujo y comportamiento entre los brokers de kafka
   zookeeper:
     networks:
-      - kafka-network
-    image: confluentinc/cp-zookeeper:7.5.0
-    ports:
-      - "2181:2181"
+      - aether-network
+    image: confluentinc/cp-zookeeper:latest
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
-    healthcheck:
-      test: nc -z localhost 2181
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      
-  kafka:
-    networks:
-      - kafka-network
-    image: confluentinc/cp-kafka:7.5.0
     ports:
-      - "9092:9092"
-    environment:
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-    volumes:
-      - kafka-logs:/var/log/kafka
+      - "2181:2181"  
+
+  # Broker de Kafka el cual gestionara topics y particiones, gestion de publicacion y consumo de mensajes
+  kafka-broker:
+    networks:
+      - aether-network
+    image: confluentinc/cp-kafka:latest
     depends_on:
       - zookeeper
-
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_HOST://kafka-broker:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka-logs:/var/log/kafka
+  # Servicio para crear topics necesarios en Kafka
   create-topics:
     networks:
-      - kafka-network
-    image: confluentinc/cp-kafka:7.5.0
+      - aether-network
+    image: confluentinc/cp-kafka:latest
     depends_on:
-      - kafka
+      - kafka-broker
     entrypoint: >
       bash -c "
       echo 'Waiting for Kafka to be ready...';
       cub kafka-ready -b kafka:9092 1 20;
       echo 'Creating topics...';
-      kafka-topics --create --topic crawled_data --bootstrap-server kafka:9092 --partitions 1 --replication-factor 1;
-      kafka-topics --create --topic parquet_data --bootstrap-server kafka:9092 --partitions 1 --replication-factor 1;
+      kafka-topics --bootstrap-server kafka-broker:9092 --create --topic crawled_data;
+      kafka-topics --bootstrap-server kafka-broker:9092 --create --topic parquet_data;
       echo 'Topics created.'"
 
-networks:
-  kafka-network:
-volumes:
-  kafka-logs:
-  kafka-data:
-    driver: local
+  # Servicio de Kafka Connect para conectar Kafka con otros sistemas como HDFS en este caso
+  Kafka-Connect:
+    networks:
+      - aether-network
+    image: confluentinc/cp-kafka-connect:latest
+    depends_on:
+      - kafka-broker
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: kafka-broker:9092
+      CONNECT_REST_PORT: 8083
+      CONNECT_GROUP_ID: "quickstart"
+      CONNECT_CONFIG_STORAGE_TOPIC: "quickstart-config"
+      CONNECT_OFFSET_STORAGE_TOPIC: "quickstart-offsets"
+      CONNECT_STATUS_STORAGE_TOPIC: "quickstart-status"
+      CONNECT_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_INTERNAL_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_INTERNAL_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_REST_ADVERTISED_HOST_NAME: "kafka-connect"
+      CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components/"
+    ports:
+      - "8083:8083"
+    command: 
+      - bash
+      - -c
+      - |
+        confluent-hub install --no-prompt confluentinc/kafka-connect-hdfs:latest && \
+        /etc/confluent/docker/run
+  # Servicio para crear el conector HDFS en Kafka Connect y conectarlo con nuestro HDFS
+  create-hdfs-connector:
+    networks:
+      - aether-network
+    image: curlimages/curl:latest
+    depends_on:
+      - kafka-connect
+      - hdfs-namenode
+    entrypoint: >
+      sh -c "
+      echo 'Esperando a Kafka Connect...';
+      sleep 20;
+      echo 'Creando conector HDFS...';
+      curl -X POST -H 'Content-Type: application/json' \
+        --data '{
+          \"name\": \"hdfs-sink\",
+          \"config\": {
+            \"connector.class\": \"io.confluent.connect.hdfs.HdfsSinkConnector\",
+            \"tasks.max\": \"1\",
+            \"topics\": \"Parquet_data\",
+            \"hdfs.url\": \"hdfs://hdfs-namenode:8020\",
+            \"flush.size\": \"1000\",
+            \"format.class\": \"io.confluent.connect.hdfs.parquet.ParquetFormat\",
+            \"storage.class\": \"io.confluent.connect.hdfs.storage.HdfsStorage\",
+            \"rotate.interval.ms\": \"60000\",
+            \"partitioner.class\": \"io.confluent.connect.storage.partitioner.FieldPartitioner\",
+            \"partition.field.name\": \"domain,path,date\",
+            \"path.format\": \"'domain='${domain}/'path='${path}/'date='${date}'\",
+            \"locale\": \"en\",
+            \"timezone\": \"UTC\"
+          }
+        }' \
+        http://kafka-connect:8083/connectors;
+      echo 'Conector HDFS creado.'
+      "
+
+  # Servicio de HDFS con un namenode el cual es como el cerebro de los datanodes que almacenan los datos
+  hdfs-namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    networks:
+      - aether-network
+    environment:
+      - CLUSTER_NAME=hdfs-cluster
+      - CORE_CONF_fs_defaultFS=hdfs://hdfs-namenode:8020
+    ports:
+      - "9870:9870"   # Web UI
+      - "8020:8020"   # RPC
+    volumes:
+      - hdfs-namenode:/hadoop/dfs/name
+    hostname: hdfs-namenode
+
+  # Servicio de HDFS con un datanode el cual almacena los datos realmente en bloques y responde a las solicitudes de lectura y escritura por parte del namenode
+  hdfs-datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    networks:
+      - aether-network
+    depends_on:
+      - hdfs-namenode
+    environment:
+      - CORE_CONF_fs_defaultFS=hdfs://hdfs-namenode:8020
+    ports:
+      - "9864:9864"
+    volumes:
+      - hdfs-datanode:/hadoop/dfs/data
+    hostname: hdfs-datanode
