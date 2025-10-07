@@ -67,23 +67,16 @@ func ExtractScheme(rawURL string) (string, error) {
 	return parsedURL.Scheme, nil
 }
 
-func ExtractExternalURLs(parsedData []map[string]map[string][]string) []string {
+func ExtractExternalURLs(parsedData models.ContentPayload) []string {
 	var domains []string
-	for _, block := range parsedData {
-		if links, exists := block["links"]; exists {
-			// los puntos suspensivos es para expandir el slice ya que se le esta apendeando un vector de strings
-			if _, exists := links["https"]; exists {
-				domains = append(domains, links["https"]...)
-			}
-			if _, exists := links["http"]; exists {
-				domains = append(domains, links["http"]...)
-			}
-		}
-	}
+
+	domains = append(domains, parsedData.Links.Https...)
+	domains = append(domains, parsedData.Links.Http...)
+
 	return domains
 }
 
-func ExtractInternalURLs(parsedData []map[string]map[string][]string, rawURL string) []string {
+func ExtractInternalURLs(parsedData models.ContentPayload, rawURL string) []string {
 
 	var updatedInternalURLs []string
 	var internalURLs []string
@@ -95,24 +88,19 @@ func ExtractInternalURLs(parsedData []map[string]map[string][]string, rawURL str
 	if err != nil {
 		return nil // Manejo de errores si ExtractDomain falla
 	}
-	for _, block := range parsedData {
-		if links, exists := block["links"]; exists {
-			// los puntos suspensivos es para expandir el slice ya que se le esta apendeando un vector de strings
-			if _, exists := links["internal"]; exists {
-				internalURLs = append(internalURLs, links["internal"]...)
-			}
 
-			for _, internalURL := range internalURLs {
-				if !strings.HasPrefix(internalURL, "//") && !strings.HasPrefix(internalURL, "mailto") && !strings.HasPrefix(internalURL, "tel") && !strings.HasPrefix(internalURL, "#") && internalURL != "" && internalURL != "/" {
-					if strings.HasPrefix(internalURL, "/") {
-						updatedInternalURLs = append(updatedInternalURLs, rawURLPrefix+"://"+rawURLDomain+internalURL)
-					} else {
-						updatedInternalURLs = append(updatedInternalURLs, rawURLPrefix+"://"+rawURLDomain+"/"+internalURL)
-					}
-				}
+	internalURLs = append(internalURLs, parsedData.Links.Internal...)
+
+	for _, internalURL := range internalURLs {
+		if !strings.HasPrefix(internalURL, "//") && !strings.HasPrefix(internalURL, "mailto") && !strings.HasPrefix(internalURL, "tel") && !strings.HasPrefix(internalURL, "#") && internalURL != "" && internalURL != "/" {
+			if strings.HasPrefix(internalURL, "/") {
+				updatedInternalURLs = append(updatedInternalURLs, rawURLPrefix+"://"+rawURLDomain+internalURL)
+			} else {
+				updatedInternalURLs = append(updatedInternalURLs, rawURLPrefix+"://"+rawURLDomain+"/"+internalURL)
 			}
 		}
 	}
+
 	return updatedInternalURLs
 }
 
@@ -126,12 +114,12 @@ func RemoveDomain(slice []string, domain string) []string {
 	return slice
 }
 
-func BuildPayload(rawURL string, payload []map[string]map[string][]string) []byte {
+func BuildPayload(rawURL string, payload models.ContentPayload) []byte {
 
 	wrapped := models.KafkaCrawlerPayload{
 		URL:       rawURL,
 		Timestamp: time.Now().UTC(),
-		Payload:   payload,
+		Content:   payload,
 	}
 
 	value, _ := json.Marshal(wrapped)
