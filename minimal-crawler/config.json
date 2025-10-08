@@ -13,8 +13,7 @@
         "images": true
     },
     "brokers":[
-        "localhost:8080",
-        "localhost:8081"
+        "localhost:9093"
     ],
     "producer-topic": "crawled_data",
     "retryDelays": [1000, 2000, 5000],

@@ -18,6 +18,7 @@ type Service struct {
 
 func (s *Service) initWriter() {
 	s.once.Do(func() {
+		config.Logger.Infof("Conectando a brokers: %v\n", s.StorageConfig.Brokers)
 		s.writer = kafka.NewWriter(kafka.WriterConfig{
 			Brokers:  s.StorageConfig.Brokers,
 			Balancer: &kafka.LeastBytes{},
