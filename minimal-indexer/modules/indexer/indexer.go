@@ -25,12 +25,18 @@ type Handler struct {
 }
 
 func (h *Handler) InitIndexer(ctx context.Context) error {
-	numWorkers := h.IndexerConfig.Workers
-	pool = make(chan struct{}, numWorkers)
 
-	config.Logger.Infof("indexer started with %d workers", numWorkers)
+	// los defer se resuelven el LIFO
+	defer config.Logger.Info("indexer finished successfully")
+	// proceso padre espera a que las goroutines mueran
+	defer wg.Wait()
+
+	pool = make(chan struct{}, h.IndexerConfig.Workers)
+
+	config.Logger.Infof("indexer started with %d workers", h.IndexerConfig.Workers)
 
 	// consumer loop
+	wg.Add(1)
 	go func() {
 		err := h.ConsumerService.Consumer(ctx, func(m kafka.Message) {
 			var payload models.KafkaCrawlerPayload

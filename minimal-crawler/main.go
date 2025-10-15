@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	config "minimal-crawler/modules/config"
@@ -109,5 +110,8 @@ func main() {
 
 	// iniciar crawler, validara los storage proporcionados(que esten disponibles)
 	// y validara que las url base de las seeds(que esten activas[si devuelven algun codigo de error se borraran de las seeds])
-	crawler.InitCrawler()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	crawler.InitCrawler(ctx)
 }

@@ -4,5 +4,6 @@
     ],
     "producer-topic": "parquet_data",
     "consumer-topic": "crawled_data",
-    "retryDelays": [1000, 2000, 5000]
+    "retryDelays": [1000, 2000, 5000],
+    "workers": 5
 }

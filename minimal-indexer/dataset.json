@@ -1,0 +1,35 @@
+{
+  "keywords": {
+    "empresa": ["empresa", "about", "nosotros", "compañía", "equipo", "misión", "visión"],
+    "contacto": ["contacto", "email", "correo", "teléfono"],
+    "producto": ["producto", "servicio", "oferta", "catálogo"],
+    "noticias": ["blog", "noticia", "artículo"],
+    "autenticación": ["login", "registrarse", "usuario"],
+    "educación": ["curso", "tutorial", "aprender", "formación"],
+    "legal": ["privacidad", "términos", "condiciones"],
+    "tecnología": ["api", "html", "css", "javascript", "backend", "frontend"]
+  },
+  "patterns": [
+    "our company is ([a-záéíóúñ\\s]+)",
+    "we are ([a-záéíóúñ\\s]+)",
+    "we offer ([a-záéíóúñ\\s]+)",
+    "we provide ([a-záéíóúñ\\s]+)",
+    "we develop ([a-záéíóúñ\\s]+)",
+    "we build ([a-záéíóúñ\\s]+)",
+    "we create ([a-záéíóúñ\\s]+)",
+    "specialized in ([a-záéíóúñ\\s]+)",
+    "focused on ([a-záéíóúñ\\s]+)",
+    "experts in ([a-záéíóúñ\\s]+)",
+    "working with ([a-záéíóúñ\\s]+)",
+    "servicios de ([a-záéíóúñ\\s]+)",
+    "empresa de ([a-záéíóúñ\\s]+)",
+    "productos de ([a-záéíóúñ\\s]+)",
+    "expertos en ([a-záéíóúñ\\s]+)",
+    "especializados en ([a-záéíóúñ\\s]+)",
+    "enfocados en ([a-záéíóúñ\\s]+)",
+    "ofrecemos ([a-záéíóúñ\\s]+)",
+    "brindamos ([a-záéíóúñ\\s]+)",
+    "desarrollamos ([a-záéíóúñ\\s]+)",
+    "creamos ([a-záéíóúñ\\s]+)"
+  ]
+}

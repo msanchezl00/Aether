@@ -1,6 +1,7 @@
 package crawler
 
 import (
+	"context"
 	config "minimal-crawler/modules/config"
 	"minimal-crawler/modules/fetcher"
 	"minimal-crawler/modules/parser"
@@ -23,7 +24,7 @@ var mu sync.Mutex
 var crawledDomains []string
 var notCrawledDomains []string
 
-func (h *Handler) InitCrawler() {
+func (h *Handler) InitCrawler(ctx context.Context) {
 	// los defer se resuelven el LIFO
 	defer config.Logger.Info("crawler finished successfully")
 	// proceso padre espera a que las goroutines mueran
