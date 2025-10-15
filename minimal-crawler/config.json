@@ -1,6 +1,6 @@
 {
     "seeds":[
-        {"https://www.usal.es": 1},
+        {"https://www.usal.es": 0},
         {"https://www.unileon.es": 0},
         {"https://www.ubu.es": 0}
     ],
@@ -13,10 +13,10 @@
         "images": true
     },
     "brokers":[
-        "localhost:9093"
+        "kafka-broker:9092"
     ],
     "producer-topic": "crawled_data",
-    "retryDelays": [1000, 2000, 5000],
+    "retryDelays": [1000, 2000, 5000, 10000, 20000],
     "timeout": 3.2,
-    "workers": 3
+    "workers": 20
 }

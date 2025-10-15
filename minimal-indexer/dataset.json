@@ -4,7 +4,7 @@
     "contacto": ["contacto", "email", "correo", "teléfono"],
     "producto": ["producto", "servicio", "oferta", "catálogo"],
     "noticias": ["blog", "noticia", "artículo"],
-    "autenticación": ["login", "registrarse", "usuario"],
+    "autenticacion": ["login", "registrarse", "usuario"],
     "educación": ["curso", "tutorial", "aprender", "formación"],
     "legal": ["privacidad", "términos", "condiciones"],
     "tecnología": ["api", "html", "css", "javascript", "backend", "frontend"]

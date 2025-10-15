@@ -1,11 +1,32 @@
 networks:
   aether-network:
+    driver: bridge
 volumes:
   kafka-logs:
   hdfs-namenode:
   hdfs-datanode:
 
 services:
+
+  crawler:
+    build:
+      context: ./minimal-crawler
+      dockerfile: Dockerfile
+    depends_on:
+      - create-topics
+      - create-hdfs-connector 
+    networks:
+      - aether-network 
+
+  indexer:
+    build:
+      context: ./minimal-indexer
+      dockerfile: Dockerfile
+    depends_on:
+      - create-topics
+      - create-hdfs-connector
+    networks:
+      - aether-network        
 
   # Zookeeper es el que gestiona el flujo y comportamiento entre los brokers de kafka
   zookeeper:
@@ -75,6 +96,8 @@ services:
       CONNECT_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
       CONNECT_INTERNAL_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
       CONNECT_INTERNAL_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "true"
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "true"
       CONNECT_REST_ADVERTISED_HOST_NAME: "kafka-connect"
       CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
       CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
@@ -97,32 +120,13 @@ services:
       - kafka-connect
       - hdfs-namenode
     entrypoint: >
-      sh -c "
-      echo 'Esperando a Kafka Connect...';
-      sleep 20;
-      echo 'Creando conector HDFS...';
-      curl -X POST -H 'Content-Type: application/json' \
-        --data '{
-          \"name\": \"hdfs-sink\",
-          \"config\": {
-            \"connector.class\": \"io.confluent.connect.hdfs.HdfsSinkConnector\",
-            \"tasks.max\": \"1\",
-            \"topics\": \"Parquet_data\",
-            \"hdfs.url\": \"hdfs://hdfs-namenode:8020\",
-            \"flush.size\": \"1000\",
-            \"format.class\": \"io.confluent.connect.hdfs.parquet.ParquetFormat\",
-            \"storage.class\": \"io.confluent.connect.hdfs.storage.HdfsStorage\",
-            \"rotate.interval.ms\": \"60000\",
-            \"partitioner.class\": \"io.confluent.connect.storage.partitioner.FieldPartitioner\",
-            \"partition.field.name\": \"domain,path,date\",
-            \"path.format\": \"'domain='${domain}/'path='${path}/'date='${date}'\",
-            \"locale\": \"en\",
-            \"timezone\": \"UTC\"
-          }
-        }' \
-        http://kafka-connect:8083/connectors;
-      echo 'Conector HDFS creado.'
-      "
+        sh -c "
+        echo 'Esperando a Kafka Connect...';
+        sleep 40;
+        echo 'Creando conector HDFS...';
+        curl -X POST -H 'Content-Type: application/json' --data '{\"name\": \"hdfs-sink\", \"config\": {\"connector.class\": \"io.confluent.connect.hdfs.HdfsSinkConnector\", \"tasks.max\": \"1\", \"topics\": \"parquet_data\", \"hdfs.url\": \"hdfs://hdfs-namenode:8020\", \"flush.size\": \"1000\", \"format.class\": \"io.confluent.connect.hdfs.parquet.ParquetFormat\", \"storage.class\": \"io.confluent.connect.hdfs.storage.HdfsStorage\", \"rotate.interval.ms\": \"60000\", \"partitioner.class\": \"io.confluent.connect.storage.partitioner.FieldPartitioner\", \"partition.field.name\": \"domain,path,date\", \"path.format\": \"'domain'=${domain}/'path'=${path}/'date'=${date}\", \"locale\": \"en\", \"timezone\": \"UTC\"}}' http://kafka-connect:8083/connectors;
+        echo 'Conector HDFS creado.'
+        "
 
   # Servicio de HDFS con un namenode el cual es como el cerebro de los datanodes que almacenan los datos
   hdfs-namenode:
