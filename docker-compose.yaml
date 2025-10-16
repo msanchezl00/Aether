@@ -92,8 +92,10 @@ services:
       CONNECT_CONFIG_STORAGE_TOPIC: "quickstart-config"
       CONNECT_OFFSET_STORAGE_TOPIC: "quickstart-offsets"
       CONNECT_STATUS_STORAGE_TOPIC: "quickstart-status"
-      CONNECT_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
-      CONNECT_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_KEY_CONVERTER: "io.confluent.connect.avro.AvroConverter"
+      CONNECT_VALUE_CONVERTER: "io.confluent.connect.avro.AvroConverter"
+      CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
+      CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: "http://schema-registry:8081"
       CONNECT_INTERNAL_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
       CONNECT_INTERNAL_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
       CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "true"
@@ -120,13 +122,43 @@ services:
       - kafka-connect
       - hdfs-namenode
     entrypoint: >
-        sh -c "
-        echo 'Esperando a Kafka Connect...';
-        sleep 40;
-        echo 'Creando conector HDFS...';
-        curl -X POST -H 'Content-Type: application/json' --data '{\"name\": \"hdfs-sink\", \"config\": {\"connector.class\": \"io.confluent.connect.hdfs.HdfsSinkConnector\", \"tasks.max\": \"1\", \"topics\": \"parquet_data\", \"hdfs.url\": \"hdfs://hdfs-namenode:8020\", \"flush.size\": \"1000\", \"format.class\": \"io.confluent.connect.hdfs.parquet.ParquetFormat\", \"storage.class\": \"io.confluent.connect.hdfs.storage.HdfsStorage\", \"rotate.interval.ms\": \"60000\", \"partitioner.class\": \"io.confluent.connect.storage.partitioner.FieldPartitioner\", \"partition.field.name\": \"domain,path,date\", \"path.format\": \"'domain'=${domain}/'path'=${path}/'date'=${date}\", \"locale\": \"en\", \"timezone\": \"UTC\"}}' http://kafka-connect:8083/connectors;
-        echo 'Conector HDFS creado.'
-        "
+      sh -c "
+      echo 'Esperando a Kafka Connect...';
+      sleep 40;
+      echo 'Creando conector HDFS...';
+      curl -X POST -H 'Content-Type: application/json' --data '{
+        \"name\": \"hdfs-sink\",
+        \"config\": {
+          \"connector.class\": \"io.confluent.connect.hdfs.HdfsSinkConnector\",
+          \"tasks.max\": \"1\",
+          \"topics\": \"parquet_data\",
+          \"hdfs.url\": \"hdfs://hdfs-namenode:8020\",
+          \"flush.size\": \"1000\",
+          \"format.class\": \"io.confluent.connect.hdfs.avro.AvroFormat\",
+          \"schema.registry.url\": \"http://schema-registry:8081\",
+          \"storage.class\": \"io.confluent.connect.hdfs.storage.HdfsStorage\",
+          \"rotate.interval.ms\": \"60000\",
+          \"partitioner.class\": \"io.confluent.connect.storage.partitioner.FieldPartitioner\",
+          \"partition.field.name\": \"domain,path,date\",
+          \"path.format\": \"${domain}/${path}/${date}\",
+          \"locale\": \"en\",
+          \"timezone\": \"UTC\"
+        }
+      }' http://kafka-connect:8083/connectors;
+      echo 'Conector HDFS creado.'
+      "
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:latest
+    depends_on:
+      - kafka-broker
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: kafka-broker:9092
+    ports:
+      - "8081:8081"
+    networks:
+      - aether-network
 
   # Servicio de HDFS con un namenode el cual es como el cerebro de los datanodes que almacenan los datos
   hdfs-namenode:

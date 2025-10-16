@@ -1,34 +1,34 @@
 package models
 
 type ContentPayload struct {
-	Links    Links    `json:"links"`
-	Metadata Metadata `json:"metadata"`
-	Imgs     Imgs     `json:"imgs"`
-	Texts    Texts    `json:"texts"`
+	Links    Links    `avro:"links"`
+	Metadata Metadata `avro:"metadata"`
+	Imgs     Imgs     `avro:"imgs"`
+	Texts    Texts    `avro:"texts"`
 }
 
 type Links struct {
-	Http     []string `json:"http"`
-	Https    []string `json:"https"`
-	Files    []string `json:"files"`
-	Internal []string `json:"internal"`
+	Http     []string `avro:"http"`
+	Https    []string `avro:"https"`
+	Files    []string `avro:"files"`
+	Internal []string `avro:"internal"`
 }
 
 type Metadata struct {
-	Charset []string            `json:"charset"`
-	Logo    []string            `json:"logo"`
-	Scripts []string            `json:"scripts"`
-	Styles  []string            `json:"styles"`
-	Title   []string            `json:"title"`
-	Other   map[string][]string `json:"other"`
+	Charset []string            `avro:"charset"`
+	Logo    []string            `avro:"logo"`
+	Scripts []string            `avro:"scripts"`
+	Styles  []string            `avro:"styles"`
+	Title   []string            `avro:"title"`
+	Other   map[string][]string `avro:"other"`
 }
 
 type Imgs struct {
-	Imgs []string `json:"imgs"`
+	Imgs []string `avro:"imgs"`
 }
 
 type Texts struct {
-	H1 []string `json:"h1"`
-	H2 []string `json:"h2"`
-	P  []string `json:"p"`
+	H1 []string `avro:"h1"`
+	H2 []string `avro:"h2"`
+	P  []string `avro:"p"`
 }

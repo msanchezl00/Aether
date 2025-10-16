@@ -8,3 +8,8 @@ curl -X POST -H "Content-Type: application/vnd.kafka.json.v2+json" \
 curl -X POST -H "Content-Type: application/vnd.kafka.v2+json" \
   --data '{"name": "my_consumer", "format": "json", "auto.offset.reset": "earliest"}' \
   http://localhost:8082/consumers/parquet_data
+
+
+hdfs dfs -chmod -R 777 /
+
+curl -X POST http://localhost:8083/connectors/hdfs-sink/tasks/0/restart

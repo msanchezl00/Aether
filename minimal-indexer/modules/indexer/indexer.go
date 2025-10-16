@@ -70,7 +70,7 @@ func (h *Handler) Indexer(payload models.KafkaCrawlerPayload) {
 	}
 
 	// se almacena la informacion transformada en Kafka para que luego Kafka Connect la lleve a HDFS
-	err = h.StorageService.KafkaStorage(utils.BuildPayload(payloadProcessed), 0)
+	err = h.StorageService.KafkaStorage(utils.BuildPayloadAvro(payloadProcessed), 0)
 	if err != nil {
 		config.Logger.Errorf("error storage payload: %v", err)
 	}

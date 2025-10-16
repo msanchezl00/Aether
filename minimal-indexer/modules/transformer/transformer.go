@@ -6,6 +6,7 @@ import (
 	"minimal-indexer/utils"
 	"regexp"
 	"strings"
+	"time"
 )
 
 type Service struct {
@@ -22,6 +23,7 @@ func (s *Service) Transform(payload models.KafkaCrawlerPayload) (models.KafkaInd
 	indexPayload := models.KafkaIndexerPayload{
 		Domain:  domain,
 		Path:    path,
+		Date:    time.Now().UTC().Format("2006-01-02"),
 		Tags:    tags,
 		Content: payload.Content,
 	}
