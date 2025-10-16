@@ -62,6 +62,7 @@ const kafkaIndexerAvroSchema = `{
 }`
 
 func BuildPayloadAvro(payload models.KafkaIndexerPayload) []byte {
+	//TODO: refactorizar este metodo
 	schemaRegistryURL := "http://schema-registry:8081"
 	client := srclient.CreateSchemaRegistryClient(schemaRegistryURL)
 
