@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"log"
-	"strings"
 
 	models "minimal-indexer/Models"
 
@@ -19,6 +18,7 @@ const kafkaIndexerAvroSchema = `{
     {"name": "domain", "type": ["null","string"], "default": null},
     {"name": "path", "type": ["null","string"], "default": null},
     {"name": "date", "type": ["null","string"], "default": null},
+	{"name": "real_path", "type": ["null","string"], "default": null},
     {"name": "tags", "type": {"type":"array","items":"string"}, "default": []},
     {"name": "content", "type": {
       "type": "record",
@@ -83,15 +83,13 @@ func BuildPayloadAvro(payload models.KafkaIndexerPayload) []byte {
 		return nil
 	}
 
-	domain := sanitizeField(payload.Domain)
-	path := sanitizeField(payload.Path)
-
 	// Convertir struct Go a map[string]interface{}
 	native := map[string]interface{}{
-		"domain": map[string]interface{}{"string": domain},
-		"path":   map[string]interface{}{"string": path},
-		"date":   map[string]interface{}{"string": payload.Date},
-		"tags":   payload.Tags,
+		"domain":    map[string]interface{}{"string": payload.Domain},
+		"path":      map[string]interface{}{"string": payload.Path},
+		"date":      map[string]interface{}{"string": payload.Date},
+		"real_path": map[string]interface{}{"string": payload.RealPath},
+		"tags":      payload.Tags,
 		"content": map[string]interface{}{
 			"links": map[string]interface{}{
 				"http":     payload.Content.Links.Http,
@@ -132,12 +130,4 @@ func BuildPayloadAvro(payload models.KafkaIndexerPayload) []byte {
 	msg.Write(binaryAvro)
 
 	return msg.Bytes()
-}
-
-func sanitizeField(value string) string {
-	if value == "" {
-		return "empty"
-	}
-	// reemplaza cualquier "/" por "-"
-	return strings.ReplaceAll(value, "/", "-")
 }

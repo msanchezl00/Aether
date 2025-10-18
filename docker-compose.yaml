@@ -26,7 +26,18 @@ services:
       - create-topics
       - create-hdfs-connector
     networks:
-      - aether-network        
+      - aether-network    
+
+  ranking:
+    build:
+      context: ./minimal-ranking
+      dockerfile: Dockerfile
+    depends_on:
+      - spark-master
+    networks:
+      - aether-network   
+    ports:
+      - "8000:8000"    
 
   # Zookeeper es el que gestiona el flujo y comportamiento entre los brokers de kafka
   zookeeper:
@@ -189,3 +200,31 @@ services:
     volumes:
       - hdfs-datanode:/hadoop/dfs/data
     hostname: hdfs-datanode
+
+  spark-master:
+    image: idirze/spark:spark-3.5.1-scala-2.13-java-17
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - SPARK_SUBMIT_OPTIONS=--packages org.apache.spark:spark-avro_2.12:3.5.1
+      - SPARK_CONF_DIR=/opt/spark/conf
+    depends_on:
+      - hdfs-namenode
+    networks:
+      - aether-network
+    ports:
+      - "8080:8080"   # UI web
+      - "7077:7077"   # puerto master para workers
+
+  spark-worker-1:
+    image: idirze/spark:spark-3.5.1-scala-2.13-java-17
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_SUBMIT_OPTIONS=--packages org.apache.spark:spark-avro_2.12:3.5.1
+      - SPARK_CONF_DIR=/opt/spark/conf
+    networks:
+      - aether-network
