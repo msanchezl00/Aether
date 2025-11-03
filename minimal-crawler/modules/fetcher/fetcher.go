@@ -43,7 +43,6 @@ func (s *Service) Fetch(url string, timeout float32) ([]byte, error) {
 	bodyEnd := bytes.Index(htmlLower, []byte("</body>"))
 	if bodyStart != -1 && bodyEnd != -1 && bodyEnd > bodyStart {
 		bodyContent := htmlLower[bodyStart:bodyEnd]
-		// Si tiene pocos caracteres visibles
 		visibleChars := bytes.Count(bodyContent, []byte("a")) + bytes.Count(bodyContent, []byte("p"))
 		if visibleChars < 10 {
 			isDynamic = true
@@ -57,34 +56,38 @@ func (s *Service) Fetch(url string, timeout float32) ([]byte, error) {
 		isDynamic = true
 	}
 
-	// usar FetchRendered con headless browser
+	// Usar FetchRendered si es página dinámica
 	if isDynamic {
-		rendered, err := FetchRendered(url, timeout)
+		rendered, err := s.FetchRendered(url, timeout)
 		if err != nil {
 			return nil, err
 		}
 		return rendered, nil
 	}
 
-	// Si no, retornar fetch normal
+	// Retornar fetch normal
 	return htmlUTF8, nil
 }
 
-func FetchRendered(url string, timeout float32) ([]byte, error) {
-	// Lanza browser headless
-	browser := rod.New().ControlURL(launcher.New().Headless(true).MustLaunch()).MustConnect()
+func (s *Service) FetchRendered(url string, timeout float32) ([]byte, error) {
+	// Lanzar browser headless con Rod (usa Chromium automático)
+	browser := rod.New().ControlURL(
+		launcher.New().
+			Headless(true). // Headless
+			MustLaunch(),   // Descarga Chromium si no existe
+	).MustConnect()
 	defer browser.MustClose()
 
-	// Abre página
+	// Abrir página
 	page := browser.MustPage(url)
 
-	// Espera que el body esté visible
+	// Esperar body renderizado
 	page.MustElement("body").MustWaitVisible()
 
-	// Timeout opcional: espera JS dinámico
+	// Espera opcional para JS dinámico
 	time.Sleep(time.Duration(timeout * float32(time.Second)))
 
-	// Obtén HTML completo
+	// Obtener HTML completo
 	html, err := page.HTML()
 	if err != nil {
 		return nil, err

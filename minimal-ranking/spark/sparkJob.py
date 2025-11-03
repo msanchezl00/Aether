@@ -20,6 +20,8 @@ spark = (
     .config("spark.hadoop.fs.defaultFS", cfg["hdfs_base_path"])
     .config("spark.jars.packages", "org.apache.spark:spark-avro_2.12:3.5.1")
     .config("spark.sql.catalogImplementation", "in-memory")
+    .config("spark.network.timeout", "600s")
+    .config("spark.executor.heartbeatInterval", "100s")
     .getOrCreate()
 )
 

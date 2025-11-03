@@ -2,27 +2,39 @@
 FROM golang:1.23-bullseye AS builder
 WORKDIR /app
 
-# Copiar módulos y descargar dependencias
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copiar todo el código y config.json
 COPY . .
-
-# Construir binario
 RUN go build -o crawler
 
 # Etapa final
 FROM ubuntu:22.04
 WORKDIR /app
 
-# Dependencias necesarias
-RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+# Librerías mínimas para Chromium headless
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libx11-6 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxext6 \
+    libxfixes3 \
+    libxi6 \
+    libxrandr2 \
+    libxrender1 \
+    libglib2.0-0 \
+    libgtk-3-0 \
+    libnss3 \
+    libatk1.0-0 \
+    libasound2 \
+    fonts-liberation \
+    libgbm1 \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copiar binario
+# Copiar binario del builder y config
 COPY --from=builder /app/crawler /usr/local/bin/crawler
-
-# Copiar config.json desde builder
 COPY --from=builder /app/config.json /app/config.json
 
 CMD ["crawler"]

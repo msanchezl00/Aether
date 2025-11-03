@@ -1,8 +1,8 @@
 {
   "app_name": "MINIMAL_RANKING",
   "master": "spark://spark-master:7077",
-  "executor_memory": "2g",
-  "driver_memory": "1g",
-  "executor_cores": 2,
+  "driver_memory": "2g",
+  "executor_memory": "4g",
+  "executor_cores": 3,
   "hdfs_base_path": "hdfs://hdfs-namenode:8020/topics/parquet_data"
 }
