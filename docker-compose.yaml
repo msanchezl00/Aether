@@ -37,7 +37,18 @@ services:
     networks:
       - aether-network   
     ports:
-      - "8000:8000"    
+      - "8000:8000" 
+
+  search:
+    build:
+      context: ./minimal-search
+      dockerfile: Dockerfile
+    depends_on:
+      - ranking
+    networks:
+      - aether-network   
+    ports:
+      - "5050:5050"       
 
   # Zookeeper es el que gestiona el flujo y comportamiento entre los brokers de kafka
   zookeeper:
@@ -67,6 +78,8 @@ services:
       KAFKA_DEFAULT_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_MESSAGE_MAX_BYTES: 10485760       # 10 MB
+      KAFKA_REPLICA_FETCH_MAX_BYTES: 10485760 # 10 MB
       KAFKA_LOG_DIRS: /var/lib/kafka/data
     ports:
       - "9092:9092"

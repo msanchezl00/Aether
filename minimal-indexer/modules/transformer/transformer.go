@@ -21,8 +21,8 @@ func (s *Service) Transform(payload models.KafkaCrawlerPayload) (models.KafkaInd
 	tags := ExtractTags(domain, path, payload.Content, s.TransformerConfig.Keywords, s.TransformerConfig.Patterns)
 
 	indexPayload := models.KafkaIndexerPayload{
-		Domain:   sanitizeField(domain),
-		Path:     sanitizeField(path),
+		Domain:   domain,
+		Path:     sanitizeFieldPath(path),
 		RealPath: path,
 		Date:     time.Now().UTC().Format("2006-01-02"),
 		Tags:     tags,
@@ -60,12 +60,17 @@ func extractDynamicKeywords(text string, patterns []string) []string {
 	return results
 }
 
-func sanitizeField(value string) string {
+var invalidChars = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
+
+func sanitizeFieldPath(value string) string {
 	if value == "" {
 		return "empty"
 	}
-	// reemplaza cualquier "/" por "-"
-	return strings.ReplaceAll(value, "/", "-")
+
+	// reemplaza cualquier caracter no permitido por "_"
+	value = invalidChars.ReplaceAllString(value, "_")
+
+	return value
 }
 
 // Etiquetado completo

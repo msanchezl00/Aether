@@ -1,0 +1,40 @@
+---
+import SearchIsland from "../components/SearchIsland.astro";
+---
+
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MinimalSearch</title>
+    <style>
+      :root {
+        --c1: #29abd6;   /* azul celeste */
+        --c2: #d36600;   /* naranja vivo */
+        --c3: #83c335;   /* verde lima */
+      }
+
+      body {
+        margin: 0;
+        padding: 2rem;
+        height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        background: linear-gradient(-45deg, var(--c1), var(--c2), var(--c3), var(--c1));
+        background-size: 400% 400%;
+        animation: gradientMove 12s ease infinite;
+        font-family: system-ui, sans-serif;
+      }
+
+      @keyframes gradientMove {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+      }
+    </style>
+  </head>
+  <body>
+    <SearchIsland client:load />
+  </body>
+</html>
