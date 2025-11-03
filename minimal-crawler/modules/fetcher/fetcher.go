@@ -23,7 +23,7 @@ func (s *Service) Fetch(url string, timeout float32) ([]byte, error) {
 
 	// Heurística: si el HTML es muy corto o contiene solo scripts, usar renderizado
 	if len(htmlUTF8) < 500 || bytes.Contains(htmlUTF8, []byte("<script")) {
-		rendered, err := s.FetchRendered(url, timeout)
+		rendered, err := FetchRendered(url, timeout)
 		if err != nil {
 			return nil, err
 		}
@@ -33,7 +33,7 @@ func (s *Service) Fetch(url string, timeout float32) ([]byte, error) {
 	return htmlUTF8, nil
 }
 
-func (s *Service) FetchRendered(url string, timeout float32) ([]byte, error) {
+func FetchRendered(url string, timeout float32) ([]byte, error) {
 	// Lanza browser headless
 	browser := rod.New().ControlURL(launcher.New().Headless(true).MustLaunch()).MustConnect()
 	defer browser.MustClose()
