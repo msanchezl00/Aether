@@ -241,3 +241,21 @@ services:
       - SPARK_CONF_DIR=/opt/spark/conf
     networks:
       - aether-network
+  spark-worker-2:
+    image: idirze/spark:spark-3.5.1-scala-2.13-java-17
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_SUBMIT_OPTIONS=--packages org.apache.spark:spark-avro_2.12:3.5.1
+      - SPARK_CONF_DIR=/opt/spark/conf
+    networks:
+      - aether-network
+  spark-worker-3:
+    image: idirze/spark:spark-3.5.1-scala-2.13-java-17
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_SUBMIT_OPTIONS=--packages org.apache.spark:spark-avro_2.12:3.5.1
+      - SPARK_CONF_DIR=/opt/spark/conf
+    networks:
+      - aether-network
