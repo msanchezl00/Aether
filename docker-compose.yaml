@@ -4,7 +4,8 @@ networks:
 volumes:
   kafka-logs:
   hdfs-namenode:
-  hdfs-datanode:
+  hdfs-datanode-1:
+  hdfs-datanode-2:
 
 services:
 
@@ -200,7 +201,7 @@ services:
     hostname: hdfs-namenode
 
   # Servicio de HDFS con un datanode el cual almacena los datos realmente en bloques y responde a las solicitudes de lectura y escritura por parte del namenode
-  hdfs-datanode:
+  hdfs-datanode-1:
     image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
     networks:
       - aether-network
@@ -211,8 +212,21 @@ services:
     ports:
       - "9864:9864"
     volumes:
-      - hdfs-datanode:/hadoop/dfs/data
-    hostname: hdfs-datanode
+      - hdfs-datanode-1:/hadoop/dfs/data
+    hostname: hdfs-datanode-1
+  hdfs-datanode-2:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    networks:
+      - aether-network
+    depends_on:
+      - hdfs-namenode
+    environment:
+      - CORE_CONF_fs_defaultFS=hdfs://hdfs-namenode:8020
+    ports:
+      - "9864:9864"
+    volumes:
+      - hdfs-datanode-2:/hadoop/dfs/data
+    hostname: hdfs-datanode-2
 
   spark-master:
     image: idirze/spark:spark-3.5.1-scala-2.13-java-17
