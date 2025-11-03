@@ -15,14 +15,50 @@ type Service struct {
 }
 
 func (s *Service) Fetch(url string, timeout float32) ([]byte, error) {
-	// Primero intento fetch normal
+	// Fetch normal primero
 	htmlUTF8, err := utils.GetRequest(url, timeout)
 	if err != nil {
 		return nil, err
 	}
 
-	// Heurística: si el HTML es muy corto o contiene solo scripts, usar renderizado
-	if len(htmlUTF8) < 500 || bytes.Contains(htmlUTF8, []byte("<script")) {
+	// Limpieza básica del HTML para análisis
+	htmlLower := bytes.ToLower(htmlUTF8)
+
+	// Heurística mejorada
+	isDynamic := false
+
+	// Contenido mínimo
+	if len(htmlUTF8) < 1000 {
+		isDynamic = true
+	}
+
+	// Body vacío
+	if bytes.Contains(htmlLower, []byte("<body></body>")) ||
+		bytes.Contains(htmlLower, []byte("<body/>")) {
+		isDynamic = true
+	}
+
+	// Solo scripts o comentarios
+	bodyStart := bytes.Index(htmlLower, []byte("<body"))
+	bodyEnd := bytes.Index(htmlLower, []byte("</body>"))
+	if bodyStart != -1 && bodyEnd != -1 && bodyEnd > bodyStart {
+		bodyContent := htmlLower[bodyStart:bodyEnd]
+		// Si tiene pocos caracteres visibles
+		visibleChars := bytes.Count(bodyContent, []byte("a")) + bytes.Count(bodyContent, []byte("p"))
+		if visibleChars < 10 {
+			isDynamic = true
+		}
+	}
+
+	// Indicadores de SPA (React, Angular, Vue...)
+	if bytes.Contains(htmlLower, []byte("id=\"root\"")) ||
+		bytes.Contains(htmlLower, []byte("id=\"app\"")) ||
+		bytes.Contains(htmlLower, []byte("ng-app")) {
+		isDynamic = true
+	}
+
+	// usar FetchRendered con headless browser
+	if isDynamic {
 		rendered, err := FetchRendered(url, timeout)
 		if err != nil {
 			return nil, err
@@ -30,6 +66,7 @@ func (s *Service) Fetch(url string, timeout float32) ([]byte, error) {
 		return rendered, nil
 	}
 
+	// Si no, retornar fetch normal
 	return htmlUTF8, nil
 }
 
