@@ -1,4 +1,4 @@
-# 🔍 Distributed Search Engine
+# 🔍 Aether
 
 A **modular and scalable search engine** built to process, index, and rank web data using modern Big Data technologies.
 
@@ -54,8 +54,8 @@ Below is the full system architecture and data flow diagram:
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/distributed-search-engine.git
-   cd distributed-search-engine
+   git clone https://github.com/Marioxuloh/Aether.git
+   cd Aether
 
 2. Launch System:
    ```bash
