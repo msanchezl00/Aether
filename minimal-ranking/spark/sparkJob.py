@@ -2,8 +2,7 @@ import json
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, array_contains, concat_ws, lit
 from py4j.java_gateway import java_import
-from pyspark.sql.functions import col, array_contains, explode, lower, concat_ws, lit, count, exists
-
+from pyspark.sql.functions import col, array_contains, explode, lower, concat_ws, lit, count, exists, explode, col, count, concat_ws, lit
 
 # Cargar configuración
 with open("config/spark_config.json") as f:
@@ -41,7 +40,7 @@ df = (
 def search_uris(query: str, max_results: int = 1000):
     q = query.lower()
 
-    # 1️⃣ URLs encontradas según tags/textos
+    # URLs encontradas según tags/textos
     df_filtered = df.filter(
         array_contains(col("tags"), q) |
         exists(col("content.texts.h1"), lambda x: lower(x).contains(q)) |
@@ -51,28 +50,20 @@ def search_uris(query: str, max_results: int = 1000):
         "url", concat_ws("", lit("https://"), col("domain"), col("real_path"))
     ).select("url").distinct()
 
-    urls_tags = [row["url"] for row in df_filtered.collect()]
+    # Usar external_refs ya precalculado
+    df_score = df.select("url", "external_refs").distinct()
 
-    # 2️⃣ Explode links para contar referencias
-    df_links = df.select(
-        explode(col("content.links.https")).alias("link")
-    ).union(
-        df.select(explode(col("content.links.http")).alias("link"))
+    #  Unir con las URLs encontradas y ordenar por referencias
+    df_result = (
+        df_filtered.join(df_score, df_filtered.url == df_score.url, "left")
+        .fillna(0, subset=["external_refs"])
+        .orderBy(col("external_refs").desc())
     )
 
-    # 3️⃣ Contar cuántas veces cada URL de tags aparece en links
-    df_score = df_links.filter(col("link").isin(urls_tags)) \
-                       .groupBy("link").agg(count("*").alias("ref_count"))
-
-    # 4️⃣ Unir con las URLs encontradas y ordenar por referencias
-    df_result = df_filtered.join(df_score, df_filtered.url == df_score.link, "left") \
-                           .fillna(0, subset=["ref_count"]) \
-                           .orderBy(col("ref_count").desc())
-
-    # 5️⃣ Iterar localmente sin saturar driver
+    # Iterar localmente sin saturar driver
     urls_with_score = []
     for row in df_result.toLocalIterator():
-        urls_with_score.append({"url": row["url"], "score": row["ref_count"]})
+        urls_with_score.append({"url": row["url"], "score": row["external_refs"]})
         if len(urls_with_score) >= max_results:
             break
 
@@ -81,13 +72,37 @@ def search_uris(query: str, max_results: int = 1000):
 
 def load_hdfs_parquet_data():
     """
-    Carga datos desde HDFS y devuelve mensaje de éxito.
+    Carga datos desde HDFS, calcula external_refs y escribe Avro actualizado.
     """
     global df
+    # Cargar datos originales
     df = (
         spark.read.format("avro")
         .option("recursiveFileLookup", "true")
         .load(cfg["hdfs_base_path"])
     )
 
-    return "topic" + cfg["hdfs_base_path"] + "loaded from hdfs successfully"
+    # Crear DataFrame con todos los links salientes
+    df_links = (
+        df.select(explode(col("content.links.https")).alias("link"))
+        .union(df.select(explode(col("content.links.http")).alias("link")))
+    )
+
+    # Contar cuántas veces cada link aparece referenciado
+    df_ref_count = (
+        df_links.groupBy("link")
+        .agg(count("*").alias("external_refs"))
+    )
+
+    # Crear URL canónica por página
+    df = df.withColumn("url", concat_ws("", lit("https://"), col("domain"), col("real_path")))
+
+    # Unir conteo con el dataset original
+    df = df.join(df_ref_count, df.url == df_ref_count.link, "left") \
+           .drop("link") \
+           .fillna(0, subset=["external_refs"])
+
+    # Guardar versión actualizada en nuevo path HDFS
+    df.write.format("avro").mode("overwrite").save(cfg["hdfs_base_path"])
+
+    return f"topic {cfg['hdfs_base_path']} loaded and updated with external_refs successfully"
