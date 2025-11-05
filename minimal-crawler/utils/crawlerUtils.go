@@ -135,7 +135,9 @@ func GetRobotsRules(urlStr string) (allows []string, disallows []string, err err
 		return nil, nil, err
 	}
 
-	resp, err := http.Get(parsed.Scheme + "://" + parsed.Host + "/robots.txt")
+	baseURL := parsed.Scheme + "://" + parsed.Host
+
+	resp, err := http.Get(baseURL + "/robots.txt")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -148,6 +150,7 @@ func GetRobotsRules(urlStr string) (allows []string, disallows []string, err err
 
 	lines := strings.Split(string(data), "\n")
 	currentAgent := ""
+
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
@@ -165,14 +168,15 @@ func GetRobotsRules(urlStr string) (allows []string, disallows []string, err err
 		switch key {
 		case "user-agent":
 			currentAgent = val
+
 		case "allow":
-			// Solo tomamos las reglas del user-agent *
 			if currentAgent == "*" {
-				allows = append(allows, val)
+				allows = append(allows, baseURL+val)
 			}
+
 		case "disallow":
 			if currentAgent == "*" {
-				disallows = append(disallows, val)
+				disallows = append(disallows, baseURL+val)
 			}
 		}
 	}

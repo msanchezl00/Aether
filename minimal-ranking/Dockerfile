@@ -1,4 +1,4 @@
-FROM openjdk:8-jdk-slim
+FROM eclipse-temurin:8-jdk-jammy
 
 # Instalar Python y pip
 RUN apt-get update && apt-get install -y python3 python3-pip && rm -rf /var/lib/apt/lists/*

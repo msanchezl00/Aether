@@ -67,6 +67,12 @@ func main() {
 		}
 	}
 
+	if seedsJSON, err := json.Marshal(Config.Seeds); err == nil {
+		config.Logger.Infof("Seeds configuradas: %s", string(seedsJSON))
+	} else {
+		config.Logger.Warnf("Error al serializar Seeds: %v", err)
+	}
+
 	// sobreescribimos la configuracion de brokers si existe la variable de entorno
 	if brokersEnv := os.Getenv("CONF_BROKERS"); brokersEnv != "" {
 		var brokers []string
