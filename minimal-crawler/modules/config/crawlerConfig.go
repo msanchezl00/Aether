@@ -5,4 +5,5 @@ type CrawlerConfig struct {
 	Recursive bool
 	Timeout   float32
 	Workers   int32
+	Robots    bool
 }

@@ -85,9 +85,7 @@ func main() {
 	// tambien permite modificar el objeto original y no perder la informacion
 	// en tiempo de ejecucion
 	fetcher := &fetcher.Service{
-		FetcherConfig: config.FetcherConfig{
-			Robots: Config.Robots,
-		},
+		FetcherConfig: config.FetcherConfig{},
 	}
 
 	// creacion del parser
@@ -123,6 +121,7 @@ func main() {
 			Recursive: Config.Recursive,
 			Timeout:   Config.Timeout,
 			Workers:   Config.Workers,
+			Robots:    Config.Robots,
 		},
 		FetcherService: fetcher,
 		ParserService:  parser,

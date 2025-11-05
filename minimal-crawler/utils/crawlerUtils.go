@@ -2,7 +2,9 @@ package utils
 
 import (
 	"encoding/json"
+	"io"
 	"minimal-crawler/models"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -125,4 +127,55 @@ func BuildPayload(rawURL string, payload models.ContentPayload) []byte {
 	value, _ := json.Marshal(wrapped)
 
 	return value
+}
+
+func GetRobotsRules(urlStr string) (allows []string, disallows []string, err error) {
+	parsed, err := url.Parse(urlStr)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	resp, err := http.Get(parsed.Scheme + "://" + parsed.Host + "/robots.txt")
+	if err != nil {
+		return nil, nil, err
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	lines := strings.Split(string(data), "\n")
+	currentAgent := ""
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		key := strings.ToLower(strings.TrimSpace(parts[0]))
+		val := strings.TrimSpace(parts[1])
+
+		switch key {
+		case "user-agent":
+			currentAgent = val
+		case "allow":
+			// Solo tomamos las reglas del user-agent *
+			if currentAgent == "*" {
+				allows = append(allows, val)
+			}
+		case "disallow":
+			if currentAgent == "*" {
+				disallows = append(disallows, val)
+			}
+		}
+	}
+
+	return allows, disallows, nil
 }
