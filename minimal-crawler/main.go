@@ -59,6 +59,27 @@ func main() {
 		return
 	}
 
+	// sobreescribimos la configuracion de seeds si existe la variable de entorno
+	if seedsEnv := os.Getenv("CONF_SEEDS"); seedsEnv != "" {
+		var seeds []map[string]int
+		if err := json.Unmarshal([]byte(seedsEnv), &seeds); err == nil {
+			Config.Seeds = seeds
+		}
+	}
+
+	// sobreescribimos la configuracion de brokers si existe la variable de entorno
+	if brokersEnv := os.Getenv("CONF_BROKERS"); brokersEnv != "" {
+		var brokers []string
+		if err := json.Unmarshal([]byte(brokersEnv), &brokers); err == nil {
+			Config.Brokers = brokers
+		}
+	}
+
+	// sobreescribimos la configuracion del topic del productor si existe la variable de entorno
+	if topic := os.Getenv("CONF_PRODUCER_TOPIC"); topic != "" {
+		Config.ProducerTopic = topic
+	}
+
 	// uso de ampersan para pasarle la referencia del objeto y poder usar
 	// la interfaz, de esta manera solo tienes acceso a las funciones definidas en la interfaz
 	// tambien permite modificar el objeto original y no perder la informacion

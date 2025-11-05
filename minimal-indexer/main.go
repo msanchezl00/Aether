@@ -56,6 +56,24 @@ func main() {
 		return
 	}
 
+	// sobreescribimos la configuracion de brokers si existe la variable de entorno
+	if brokersEnv := os.Getenv("CONF_BROKERS"); brokersEnv != "" {
+		var brokers []string
+		if err := json.Unmarshal([]byte(brokersEnv), &brokers); err == nil {
+			Config.Brokers = brokers
+		}
+	}
+
+	// sobreescribimos la configuracion del topic del productor si existe la variable de entorno
+	if topic := os.Getenv("CONF_PRODUCER_TOPIC"); topic != "" {
+		Config.ProducerTopic = topic
+	}
+
+	// sobreescribimos la configuracion del topic del productor si existe la variable de entorno
+	if topic := os.Getenv("CONF_CONSUMER_TOPIC"); topic != "" {
+		Config.ConsumerTopic = topic
+	}
+
 	// abrimos el archivo y generamos un tipo File de go
 	file, err = os.Open("dataset.json")
 	if err != nil {
