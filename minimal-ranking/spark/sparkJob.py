@@ -38,29 +38,39 @@ df = (
 )
 
 def search_uris(query: str, max_results: int = 1000):
-    q = query.lower()
+    # Separar palabras clave
+    keywords = [w.lower() for w in query.split() if w.strip()]
 
-    # URLs encontradas según tags/textos
-    df_filtered = df.filter(
-        array_contains(col("tags"), q) |
-        exists(col("content.texts.h1"), lambda x: lower(x).contains(q)) |
-        exists(col("content.texts.h2"), lambda x: lower(x).contains(q)) |
-        exists(col("content.texts.p"), lambda x: lower(x).contains(q))
-    ).withColumn(
-        "url", concat_ws("", lit("https://"), col("domain"), col("real_path"))
-    ).select("url").distinct()
+    # Construir filtro dinámico con OR entre todas las palabras
+    cond = None
+    for kw in keywords:
+        kw_cond = (
+            array_contains(col("tags"), kw)
+            | exists(col("content.texts.h1"), lambda x: lower(x).contains(kw))
+            | exists(col("content.texts.h2"), lambda x: lower(x).contains(kw))
+            | exists(col("content.texts.p"), lambda x: lower(x).contains(kw))
+        )
+        cond = kw_cond if cond is None else (cond | kw_cond)
 
-    # Usar external_refs ya precalculado
+    # Filtrar por coincidencias en cualquiera de las palabras
+    df_filtered = (
+        df.filter(cond)
+        .withColumn("url", concat_ws("", lit("https://"), col("domain"), col("real_path")))
+        .select("url")
+        .distinct()
+    )
+
+    # Traer external_refs ya precalculado
     df_score = df.select("url", "external_refs").distinct()
 
-    #  Unir con las URLs encontradas y ordenar por referencias
+    # Unir y ordenar
     df_result = (
-        df_filtered.join(df_score, df_filtered.url == df_score.url, "left")
+        df_filtered.join(df_score, "url", "left")
         .fillna(0, subset=["external_refs"])
         .orderBy(col("external_refs").desc())
     )
 
-    # Iterar localmente sin saturar driver
+    # Iterar resultados
     urls_with_score = []
     for row in df_result.toLocalIterator():
         urls_with_score.append({"url": row["url"], "score": row["external_refs"]})
@@ -72,9 +82,13 @@ def search_uris(query: str, max_results: int = 1000):
 
 def load_hdfs_parquet_data():
     """
-    Carga datos desde HDFS, calcula external_refs y escribe Avro actualizado.
+    Carga datos desde HDFS, calcula external_refs y sobrescribe el Avro original
+    de forma segura usando un path temporal.
     """
     global df
+
+    spark.catalog.clearCache()
+
     # Cargar datos originales
     df = (
         spark.read.format("avro")
@@ -88,21 +102,51 @@ def load_hdfs_parquet_data():
         .union(df.select(explode(col("content.links.http")).alias("link")))
     )
 
-    # Contar cuántas veces cada link aparece referenciado
+    #Contar cuántas veces cada link aparece referenciado
     df_ref_count = (
         df_links.groupBy("link")
         .agg(count("*").alias("external_refs"))
     )
 
-    # Crear URL canónica por página
+    #Crear URL canónica por página
     df = df.withColumn("url", concat_ws("", lit("https://"), col("domain"), col("real_path")))
 
     # Unir conteo con el dataset original
-    df = df.join(df_ref_count, df.url == df_ref_count.link, "left") \
-           .drop("link") \
-           .fillna(0, subset=["external_refs"])
+    if "external_refs" in df.columns:
+        df = df.drop("external_refs")
 
-    # Guardar versión actualizada en nuevo path HDFS
-    df.write.format("avro").mode("overwrite").save(cfg["hdfs_base_path"])
+    df = (
+        df.join(df_ref_count, df.url == df_ref_count.link, "left")
+        .drop(df_ref_count.link)
+        .fillna(0, subset=["external_refs"])
+    )
+
+    # Escribir en un path temporal
+    temp_path = cfg["hdfs_base_path"] + "_tmp"
+    df.write.format("avro").mode("overwrite").save(temp_path)
+
+    # Reemplazar el path original por el temporal
+    sc = spark.sparkContext
+    java_import(sc._gateway.jvm, "org.apache.hadoop.fs.FileSystem")
+    java_import(sc._gateway.jvm, "org.apache.hadoop.fs.Path")
+    java_import(sc._gateway.jvm, "org.apache.hadoop.conf.Configuration")
+
+    fs = sc._gateway.jvm.FileSystem.get(sc._jsc.hadoopConfiguration())
+
+    original_path = sc._gateway.jvm.Path(cfg["hdfs_base_path"])
+    tmp_path = sc._gateway.jvm.Path(temp_path)
+
+    if fs.exists(original_path):
+        fs.delete(original_path, True)
+    fs.rename(tmp_path, original_path)
+
+    spark.catalog.clearCache()
+
+    # Leer todos los Avro recursivamente
+    df = (
+        spark.read.format("avro")
+        .option("recursiveFileLookup", "true")
+        .load(cfg["hdfs_base_path"])
+    )
 
     return f"topic {cfg['hdfs_base_path']} loaded and updated with external_refs successfully"
