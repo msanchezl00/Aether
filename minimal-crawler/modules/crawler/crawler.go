@@ -48,8 +48,9 @@ func (h *Handler) InitCrawler(ctx context.Context) {
 					_, disallows, err := utils.GetRobotsRules(rawURL)
 					if err != nil {
 						config.Logger.Errorf("Error getting robots.txt rules for %s: %v", rawURL, err)
+					} else {
+						crawledInternalURLs = append(crawledInternalURLs, disallows...)
 					}
-					crawledInternalURLs = append(crawledInternalURLs, disallows...)
 				}
 				// funcion anonima para lanzar una url por cada goroutine
 				go h.Crawler(rawURL, &crawledInternalURLs, false, deep)
@@ -134,8 +135,9 @@ func (h *Handler) Crawler(rawURL string, crawledInternalURLs *[]string, isIntern
 					_, disallows, err := utils.GetRobotsRules(rawURL)
 					if err != nil {
 						config.Logger.Errorf("Error getting robots.txt rules for %s: %v", rawURL, err)
+					} else {
+						crawledInternalURLs = append(crawledInternalURLs, disallows...)
 					}
-					crawledInternalURLs = append(crawledInternalURLs, disallows...)
 				}
 				// lanza una gorotine para crawlear un dominio nuevo
 				go h.Crawler(notCrawledDomain, &crawledInternalURLs, false, deep-1)
