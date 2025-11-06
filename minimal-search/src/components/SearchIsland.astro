@@ -1,138 +1,365 @@
 ---
+// Astro frontmatter
 ---
 
-
 <div class="container">
-  <h2 class="title">AETHER</h2>
+  <h1 class="title">AETHER</h1>
 
   <form id="search-form">
-    <input id="query" type="text" placeholder="Write Something..." />
-    <button type="submit">Search</button>
+    <div class="search-input-wrapper">
+      <svg
+        class="search-icon"
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 20 20"
+        fill="currentColor"
+      >
+        <path
+          fill-rule="evenodd"
+          d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z"
+          clip-rule="evenodd"
+        ></path>
+      </svg>
+      <input
+        id="query"
+        type="text"
+        placeholder="Busca en el Aether..."
+      />
+    </div>
+
+    <button type="submit" class="btn-primary">Buscar</button>
+    
+    <button
+      type="button"
+      id="reload-btn"
+      class="btn-icon"
+      title="Recargar base de conocimiento"
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 20 20"
+        fill="currentColor"
+      >
+        <path
+          fill-rule="evenodd"
+          d="M15.312 11.424a5.5 5.5 0 01-9.309-2.474l-.824.824a.75.75 0 01-1.06-1.06l2.5-2.5a.75.75 0 011.06 0l2.5 2.5a.75.75 0 11-1.06 1.06l-.823-.823a4 4 0 106.014 2.473.75.75 0 111.422.424zM4.688 8.576a5.5 5.5 0 019.309 2.474l.824-.824a.75.75 0 111.06 1.06l-2.5 2.5a.75.75 0 01-1.06 0l-2.5-2.5a.75.75 0 111.06-1.06l.823.823a4 4 0 10-6.014-2.473a.75.75 0 11-1.422-.424z"
+          clip-rule="evenodd"
+        ></path>
+      </svg>
+    </button>
   </form>
 
-  <p id="loading" class="loading">Searching...</p>
+  <div id="loading" class="loading-spinner">
+    <div></div>
+    <div></div>
+    <div></div>
+    <div></div>
+  </div>
+
   <ul id="results"></ul>
 </div>
 
 <style>
   :root {
     --primary: #29abd6;
-    --primary-hover: #196781;
-    --bg: #f5f7fa;
+    --primary-darker: #196781;
+    --primary-glow: rgba(41, 171, 214, 0.2);
     --card-bg: #ffffff;
     --border: #e2e8f0;
-    --text: #1e293b;
+    --text-primary: #1e293b;
+    --text-secondary: #64748b;
   }
 
-  body {
-    background: var(--bg);
-  }
-
+  /* --- Contenedor Principal (Tarjeta Flotante) --- */
   .container {
-    max-width: 600px;
+    max-width: 700px;
     margin: 4rem auto;
-    font-family: system-ui, sans-serif;
     text-align: center;
     background: var(--card-bg);
-    border-radius: 12px;
-    padding: 2rem;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    border-radius: 16px;
+    padding: 2rem 2.5rem;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1),
+      0 4px 10px rgba(0, 0, 0, 0.07);
+    border-top: 4px solid var(--primary);
+    transform: translateY(-10px);
+    animation: floatIn 0.5s ease-out forwards;
+    opacity: 0;
   }
 
+  @keyframes floatIn {
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  /* --- Título --- */
   .title {
-    margin-bottom: 1.5rem;
-    color: var(--text);
+    margin: 0 0 2rem 0;
+    font-size: 3.5rem;
+    font-weight: 800;
+    letter-spacing: -1.5px;
+    background: linear-gradient(
+      90deg,
+      var(--primary),
+      var(--primary-darker)
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
   }
 
+  /* --- Formulario --- */
   form {
     display: flex;
-    gap: 0.5rem;
-    margin-bottom: 1.5rem;
+    gap: 0.75rem;
+    margin-bottom: 2rem;
   }
 
-  input {
+  .search-input-wrapper {
+    position: relative;
     flex: 1;
-    padding: 0.7rem 1rem;
+  }
+
+  .search-icon {
+    position: absolute;
+    left: 0.9rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1.1rem;
+    height: 1.1rem;
+    color: var(--text-secondary);
+    opacity: 0.7;
+    pointer-events: none;
+  }
+
+  input#query {
+    width: 100%;
+    flex: 1;
+    padding: 0.8rem 1rem 0.8rem 2.75rem;
     border: 1px solid var(--border);
     border-radius: 8px;
-    font-size: 1rem;
-    transition: border 0.2s, box-shadow 0.2s;
+    font-size: 1.05rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    box-sizing: border-box;
+    color: var(--text-primary);
   }
 
-  input:focus {
+  input#query:focus {
     border-color: var(--primary);
-    box-shadow: 0 0 0 2px rgba(37,99,235,0.2);
+    box-shadow: 0 0 0 3px var(--primary-glow);
     outline: none;
   }
 
+  /* --- Botones --- */
   button {
-    padding: 0.7rem 1.2rem;
-    background: var(--primary);
-    color: #fff;
+    padding: 0.8rem 1.2rem;
     border: none;
     border-radius: 8px;
     font-size: 1rem;
+    font-weight: 600;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
-  button:hover {
-    background: var(--primary-hover);
+  .btn-primary {
+    background: var(--primary);
+    color: #fff;
+  }
+  .btn-primary:hover {
+    background: var(--primary-darker);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(41, 171, 214, 0.3);
   }
 
-  .loading {
-    display: none;
-    color: var(--text);
+  .btn-icon {
+    padding: 0.8rem;
+    background: #f8fafc;
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+  .btn-icon:hover {
+    background: #eef2f7;
+    border-color: #cbd5e1;
+    color: var(--text-primary);
+  }
+  .btn-icon:disabled {
     opacity: 0.7;
-    font-style: italic;
-    margin-bottom: 1rem;
+    cursor: not-allowed;
+  }
+  
+  .btn-icon.loading svg {
+    animation: spin 1s linear infinite;
   }
 
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(-360deg);
+    }
+  }
+
+  /* --- Spinner --- */
+  .loading-spinner {
+    display: none;
+    position: relative;
+    width: 80px;
+    height: 40px;
+    margin: 0 auto 1rem auto;
+  }
+  .loading-spinner div {
+    position: absolute;
+    top: 15px;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: var(--primary);
+    animation-timing-function: cubic-bezier(0, 1, 1, 0);
+  }
+  .loading-spinner div:nth-child(1) { left: 8px; animation: lds-ellipsis1 0.6s infinite; }
+  .loading-spinner div:nth-child(2) { left: 8px; animation: lds-ellipsis2 0.6s infinite; }
+  .loading-spinner div:nth-child(3) { left: 32px; animation: lds-ellipsis2 0.6s infinite; }
+  .loading-spinner div:nth-child(4) { left: 56px; animation: lds-ellipsis3 0.6s infinite; }
+  @keyframes lds-ellipsis1 { 0% { transform: scale(0); } 100% { transform: scale(1); } }
+  @keyframes lds-ellipsis3 { 0% { transform: scale(1); } 100% { transform: scale(0); } }
+  @keyframes lds-ellipsis2 { 0% { transform: translate(0, 0); } 100% { transform: translate(24px, 0); } }
+
+  /* --- Lista de Resultados (Cards) --- */
   ul {
     list-style: none;
     padding: 0;
     margin: 0;
   }
 
+  /* ESTA ES LA REGLA MÁS IMPORTANTE PARA ARREGLAR TU PROBLEMA.
+    Define el 'li' como un recuadro (border, margin, padding)
+    y usa flexbox para alinear su contenido horizontalmente.
+  */
   li {
     background: var(--card-bg);
-    border: 1px solid var(--border);
-    margin: 0.5rem 0;
-    padding: 0.8rem 1rem;
+    border: 1px solid var(--border); /* <-- La "diferenciación con líneas" */
+    margin: 0.75rem 0; /* <-- Espacio entre recuadros */
+    padding: 0.8rem 1.25rem; 
     border-radius: 8px;
     text-align: left;
-    transition: transform 0.15s, box-shadow 0.15s;
+    transition: transform 0.2s, box-shadow 0.2s;
+    
+    opacity: 0;
+    transform: translateY(10px);
+    animation: fadeInSlideUp 0.4s ease-out forwards;
+    animation-delay: calc(var(--i) * 60ms);
+
+    /* --- Alineación Horizontal --- */
+    display: flex;
+    align-items: center; 
+    justify-content: space-between; /* <-- Mueve el score a la derecha */
+    gap: 1rem; 
+  }
+  
+  /* Mensaje de error/no resultados */
+  li.no-results {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    text-align: center;
+    font-style: italic;
+    box-shadow: none;
+    display: block; 
+    padding: 1rem;
+  }
+  li.no-results:hover {
+    transform: none;
+    box-shadow: none;
   }
 
-  li:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 3px 10px rgba(0,0,0,0.06);
+  @keyframes fadeInSlideUp {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
-  a {
-    color: var(--primary);
-    font-weight: 500;
+  li:hover:not(.no-results) {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+    border-color: #cde;
+  }
+
+  /* Grupo izquierdo (Icono + URL) */
+  .result-main {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem; 
+    min-width: 0; 
+    flex-grow: 1; 
+  }
+
+  /* ESTA ES LA REGLA QUE SOLUCIONA LOS LOGOS DE TAMAÑO DISTINTO.
+    Fuerza a que todas las imágenes tengan 20x20px.
+  */
+  .favicon {
+    flex-shrink: 0; 
+    width: 20px; 
+    height: 20px; 
+    border-radius: 4px;
+    object-fit: contain; /* <-- Evita que se deforme */
+    background-color: #f0f0f0;
+    border: 1px solid var(--border);
+  }
+
+  /* Enlace (se trunca si es largo) */
+  .result-link {
+    color: var(--primary-darker);
+    font-weight: 600;
     text-decoration: none;
+    font-size: 1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-grow: 1; 
   }
 
-  a:hover {
+  .result-link:hover {
+    color: var(--primary);
     text-decoration: underline;
   }
 
-  .score {
-    color: #475569;
-    font-size: 0.9em;
-    margin-top: 0.2rem;
+  /* ESTA ES LA REGLA PARA EL SCORE.
+    Sin fondo, color sutil, y 'flex-shrink: 0' para que no se mueva.
+  */
+  .score-display {
+    flex-shrink: 0; 
+    background: none; 
+    color: var(--text-secondary); 
+    font-size: 0.9rem; 
+    font-weight: 500;
+    padding: 0; 
+    border-radius: 0; 
   }
 </style>
 
 <script>
-    const form = document.getElementById("search-form");
-    const queryInput = document.getElementById("query");
-    const loading = document.getElementById("loading");
-    const resultsList = document.getElementById("results");
+  const form = document.getElementById("search-form");
+  const queryInput = document.getElementById("query");
+  const loading = document.getElementById("loading");
+  const resultsList = document.getElementById("results");
+  const reloadBtn = document.getElementById("reload-btn");
 
-    form.addEventListener("submit", async (e) => {
+  function getFaviconUrl(url) {
+    try {
+      const parsedUrl = new URL(url);
+      const domain = parsedUrl.hostname;
+      return `https://s2.googleusercontent.com/s2/favicons?domain=${domain}&sz=64`;
+    } catch (e) {
+      console.warn("Invalid URL for favicon:", url, e);
+      return "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="; 
+    }
+  }
+
+  form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const text = queryInput.value.trim();
     if (!text) return;
@@ -141,30 +368,70 @@
     loading.style.display = "block";
 
     try {
-        // Llamada al endpoint proxy de Astro
-        const res = await fetch("/api/search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-        });
+      const data = await search(text);
 
-        const data = await res.json();
-        if (!data.urls) throw new Error("Respuesta inválida");
+      if (!data.urls || !Array.isArray(data.urls) || data.urls.length === 0) {
+        resultsList.innerHTML = "<li class='no-results'>No se encontraron resultados.</li>";
+        return;
+      }
 
-        for (const item of data.urls) {
+      let index = 0;
+      for (const item of data.urls) {
         const li = document.createElement("li");
+        
+        li.style.setProperty('--i', index++); 
+        const faviconSrc = getFaviconUrl(item.url);
+
+        /* ESTA ES LA LÍNEA MÁS IMPORTANTE DE TU SCRIPT.
+          Define la estructura HTML correcta, con el score FUERA
+          del enlace <a>.
+        */
         li.innerHTML = `
-            <a href="${item.url}" target="_blank">${item.url}</a>
-            <div class="score">Score: ${item.score}</div>`;
+          <div class="result-main">
+            <img src="${faviconSrc}" alt="Favicon" class="favicon" onerror="this.style.display='none'">
+            <a href="${item.url}" target="_blank" class="result-link">${item.url}</a>
+          </div>
+          <div class="score-display">(${item.score.toFixed(2)})</div>
+        `;
         resultsList.appendChild(li);
-        }
+      }
     } catch (err) {
-        const li = document.createElement("li");
-        li.textContent = "Error al buscar o recibir datos.";
-        resultsList.appendChild(li);
-        console.error(err);
+      console.error(err);
+      resultsList.innerHTML = "<li class='no-results'>Error al realizar la búsqueda.</li>";
     } finally {
-        loading.style.display = "none";
+      loading.style.display = "none";
     }
+  });
+
+  reloadBtn.addEventListener("click", async () => {
+    reloadBtn.disabled = true;
+    reloadBtn.classList.add("loading"); 
+    
+    try {
+      const res = await fetch("/api/reload", { method: "GET" });
+      if (res.ok) {
+        alert("Base de conocimiento recargada correctamente");
+      } else {
+        alert("Error al recargar (" + res.status + ")");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Fallo en la conexión al recargar");
+    } finally {
+      reloadBtn.disabled = false;
+      reloadBtn.classList.remove("loading"); 
+    }
+  });
+
+  async function search(text) {
+    const res = await fetch("/api/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
     });
+    if (!res.ok) {
+       throw new Error(`Error en la solicitud: ${res.status} ${res.statusText}`);
+    }
+    return await res.json();
+  }
 </script>

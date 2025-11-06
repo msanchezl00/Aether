@@ -48,16 +48,16 @@ services:
     ports:
       - "8000:8000" 
 
-  # search:
-  #   build:
-  #     context: ./minimal-search
-  #     dockerfile: Dockerfile
-  #   depends_on:
-  #     - ranking
-  #   networks:
-  #     - aether-network   
-  #   ports:
-  #     - "5050:5050"       
+  search:
+     build:
+       context: ./minimal-search
+       dockerfile: Dockerfile
+     depends_on:
+       - ranking
+     networks:
+       - aether-network   
+     ports:
+       - "5050:5050"       
 
   # Zookeeper es el que gestiona el flujo y comportamiento entre los brokers de kafka
   zookeeper:
