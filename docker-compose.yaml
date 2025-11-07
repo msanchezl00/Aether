@@ -229,7 +229,7 @@ services:
     hostname: hdfs-datanode-1
 
   spark-master:
-    image: idirze/spark:spark-3.5.1-scala-2.13-java-17
+    image: bitnami/spark:3.5.1
     environment:
       - SPARK_MODE=master
       - SPARK_RPC_AUTHENTICATION_ENABLED=no
@@ -247,7 +247,7 @@ services:
       - "7077:7077"   # puerto master para workers
 
   spark-worker-1:
-    image: idirze/spark:spark-3.5.1-scala-2.13-java-17
+    image: bitnami/spark:3.5.1
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
