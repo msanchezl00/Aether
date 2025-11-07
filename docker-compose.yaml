@@ -14,7 +14,7 @@ services:
       context: ./minimal-crawler
       dockerfile: Dockerfile
     environment:
-      - CONF_SEEDS=[{"https://www.usal.es":1},{"https://www.unileon.es":1}]
+      - CONF_SEEDS=[{"https://www.usal.es":0},{"https://www.unileon.es":0},{"https://www.uva.es":0},{"https://www.ubu.es":0}]
       - CONF_BROKERS=["kafka-broker:9092"]
       - CONF_PRODUCER_TOPIC=crawled_data
     depends_on:
