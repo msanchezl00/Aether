@@ -162,7 +162,7 @@ services:
     entrypoint: >
       sh -c "
       echo 'Esperando a Kafka Connect...';
-      sleep 70;
+      sleep 90;
       echo 'Creando conector HDFS...';
       curl -X POST -H 'Content-Type: application/json' --data '{
         \"name\": \"hdfs-sink\",
