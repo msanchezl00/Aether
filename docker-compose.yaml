@@ -3,6 +3,7 @@ networks:
     driver: bridge
 volumes:
   kafka-logs:
+  kafka-data:
   hdfs-namenode:
   hdfs-datanode-1:
   hdfs-datanode-2:
@@ -90,11 +91,15 @@ services:
       KAFKA_MESSAGE_MAX_BYTES: 52428800       # 50 MB
       KAFKA_REPLICA_FETCH_MAX_BYTES: 52428800 # 50 MB
       KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_LOG_RETENTION_HOURS: 24
+      KAFKA_LOG_SEGMENT_BYTES: 134217728      # 128MB
+      KAFKA_LOG_RETENTION_BYTES: 1073741824   # 1GB total antes de borrar
     ports:
       - "9092:9092"
       - "9093:9093"
     volumes:
       - kafka-logs:/var/log/kafka
+      - kafka-data:/var/lib/kafka/data
   # Servicio para crear topics necesarios en Kafka
   create-topics:
     networks:
