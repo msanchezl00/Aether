@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-from spark.sparkJob import search_uris, load_hdfs_parquet_data
+from spark.sparkJob import search_uris, load_hdfs_parquet_data, get_crawled_data
 
 router = APIRouter()
 
@@ -13,6 +13,11 @@ def search(q: Query):
     return {"urls": urls}
 
 @router.get("/load_hdfs_parquet_data")
-def search():
+def load_data():
     result = load_hdfs_parquet_data()
-    return {result}
+    return {"message": result}
+
+@router.get("/get_crawled_data")
+def get_crawled_data_route(url: str):
+    result = get_crawled_data(url)
+    return result

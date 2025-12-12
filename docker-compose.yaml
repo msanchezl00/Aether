@@ -177,8 +177,8 @@ services:
           \"storage.class\": \"io.confluent.connect.hdfs.storage.HdfsStorage\",
           \"rotate.interval.ms\": \"60000\",
           \"partitioner.class\": \"io.confluent.connect.storage.partitioner.FieldPartitioner\",
-          \"partition.field.name\": \"domain,path,date\",
-          \"path.format\": \"${domain}/${path}/${date}\",
+          \"partition.field.name\": \"domain,date\",
+          \"path.format\": \"${domain}/${date}\",
           \"locale\": \"en\",
           \"timezone\": \"UTC\"
         }
