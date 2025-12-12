@@ -83,7 +83,7 @@ def search_uris(query: str, max_results: int = 1000):
 def load_hdfs_parquet_data():
     """
     Carga datos desde HDFS, calcula external_refs y sobrescribe el Avro original
-    de forma segura usando un path temporal.
+    manteniendo la estructura de directorios domain/date.
     """
     global df
 
@@ -102,13 +102,13 @@ def load_hdfs_parquet_data():
         .union(df.select(explode(col("content.links.http")).alias("link")))
     )
 
-    #Contar cuántas veces cada link aparece referenciado
+    # Contar cuántas veces cada link aparece referenciado
     df_ref_count = (
         df_links.groupBy("link")
         .agg(count("*").alias("external_refs"))
     )
 
-    #Crear URL canónica por página
+    # Crear URL canónica por página
     df = df.withColumn("url", concat_ws("", lit("https://"), col("domain"), col("real_path")))
 
     # Unir conteo con el dataset original
@@ -121,11 +121,22 @@ def load_hdfs_parquet_data():
         .fillna(0, subset=["external_refs"])
     )
 
-    # Escribir en un path temporal
+    # Escribir en un path temporal con particionado
+    # Usamos particionado para mantener la estructura, luego corregimos nombres de carpetas
     temp_path = cfg["hdfs_base_path"] + "_tmp"
-    df.write.format("avro").mode("overwrite").save(temp_path)
+    
+    # Duplicamos columas para particionar sin perderlas del contenido del archivo
+    df_write = df.withColumn("domain_p", col("domain")).withColumn("date_p", col("date"))
 
-    # Reemplazar el path original por el temporal
+    (
+        df_write.write
+        .partitionBy("domain_p", "date_p")
+        .format("avro")
+        .mode("overwrite")
+        .save(temp_path)
+    )
+
+    # Reemplazar el path original por el temporal ajustando nombres de directorios
     sc = spark.sparkContext
     java_import(sc._gateway.jvm, "org.apache.hadoop.fs.FileSystem")
     java_import(sc._gateway.jvm, "org.apache.hadoop.fs.Path")
@@ -133,20 +144,41 @@ def load_hdfs_parquet_data():
 
     fs = sc._gateway.jvm.FileSystem.get(sc._jsc.hadoopConfiguration())
 
-    original_path = sc._gateway.jvm.Path(cfg["hdfs_base_path"])
-    tmp_path = sc._gateway.jvm.Path(temp_path)
+    tmp_path_obj = sc._gateway.jvm.Path(temp_path)
+    original_path_obj = sc._gateway.jvm.Path(cfg["hdfs_base_path"])
 
-    if fs.exists(original_path):
-        fs.delete(original_path, True)
-    fs.rename(tmp_path, original_path)
+    # Renombrar carpetas de estilo Hive (domain_p=x) a estilo Connector (x)
+    if fs.exists(tmp_path_obj):
+        for status in fs.listStatus(tmp_path_obj):
+            path = status.getPath()
+            name = path.getName()
+            if name.startswith("domain_p="):
+                new_name = name.replace("domain_p=", "")
+                new_path = sc._gateway.jvm.Path(path.getParent(), new_name)
+                fs.rename(path, new_path)
+                
+                # Entrar a subdirectorios (date)
+                path = new_path
+                if fs.isDirectory(path):
+                    for sub_status in fs.listStatus(path):
+                        sub_path = sub_status.getPath()
+                        sub_name = sub_path.getName()
+                        if sub_name.startswith("date_p="):
+                            new_sub_name = sub_name.replace("date_p=", "")
+                            new_sub_path = sc._gateway.jvm.Path(sub_path.getParent(), new_sub_name)
+                            fs.rename(sub_path, new_sub_path)
+
+    if fs.exists(original_path_obj):
+        fs.delete(original_path_obj, True)
+    fs.rename(tmp_path_obj, original_path_obj)
 
     spark.catalog.clearCache()
 
-    # Leer todos los Avro recursivamente
+    # Leer todos los Avro recursivamente de nuevo
     df = (
         spark.read.format("avro")
         .option("recursiveFileLookup", "true")
         .load(cfg["hdfs_base_path"])
     )
 
-    return f"topic {cfg['hdfs_base_path']} loaded and updated with external_refs successfully"
+    return f"topic {cfg['hdfs_base_path']} loaded and updated with external_refs successfully preserving structure"
