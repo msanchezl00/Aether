@@ -80,6 +80,39 @@ def search_uris(query: str, max_results: int = 1000):
     return urls_with_score
 
 
+def get_crawled_data(url: str):
+    """
+    Obtiene toda la información crawleada para una URL específica (dominio + path).
+    Retorna una lista de diccionarios con los datos encontrados.
+    """
+    # Normalizar entrada si falta protocolo (asumimos https por defecto según el esquema logico)
+    target_url = url.strip()
+    if not target_url.startswith("http"):
+        target_url = "https://" + target_url
+    
+    # Manejar posible "/" al final (probar con y sin slash)
+    candidates = [target_url]
+    if target_url.endswith("/"):
+        candidates.append(target_url.rstrip("/"))
+    else:
+        candidates.append(target_url + "/")
+
+    # Filtrar por la url construida
+    res_df = (
+        df.withColumn("constructed_url", concat_ws("", lit("https://"), col("domain"), col("real_path")))
+        .filter(col("constructed_url").isin(candidates))
+    )
+    
+    # Recolectar y convertir a diccionario
+    data = []
+    for row in res_df.collect():
+        row_dict = row.asDict(recursive=True)
+        # Limpiar keys internas de spark/avro si molestan, o devolver todo
+        data.append(row_dict)
+        
+    return data
+
+
 def load_hdfs_parquet_data():
     """
     Carga datos desde HDFS, calcula external_refs y sobrescribe el Avro original
