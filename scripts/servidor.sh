@@ -21,3 +21,4 @@ docker compose build --no-cache     # Fuerza reconstrucción limpia
 docker compose up -d --build        # Reconstruye y levanta en una sola línea
 
 docker compose down -v --rmi all
+sudo docker compose up -d --build --force-recreate <service>
