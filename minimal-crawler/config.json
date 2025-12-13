@@ -1,7 +1,11 @@
 {
-    "seeds":[
-        {"https://www.usal.es": 2},
-        {"https://www.unileon.es": 2}
+    "seeds": [
+        {
+            "https://www.usal.es": 2
+        },
+        {
+            "https://www.unileon.es": 2
+        }
     ],
     "robots": true,
     "recursive": true,
@@ -11,11 +15,18 @@
         "text": true,
         "images": true
     },
-    "brokers":[
+    "brokers": [
         "kafka-broker:9092"
     ],
     "producer-topic": "crawled_data",
-    "retryDelays": [1000, 2000, 5000, 10000, 20000],
+    "retryDelays": [
+        1000,
+        2000,
+        5000,
+        10000,
+        20000
+    ],
     "timeout": 3.2,
-    "workers": 30
+    "workers": 30,
+    "expiryHours": 24
 }
