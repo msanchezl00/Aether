@@ -56,7 +56,9 @@ def search_uris(query: str, max_results: int = 1000):
     cond = None
     for kw in keywords:
         kw_cond = (
-            array_contains(col("tags"), kw)
+            col("domain").contains(kw)
+            | col("real_path").contains(kw)
+            | array_contains(col("tags"), kw)
             | exists(col("content.texts.h1"), lambda x: lower(x).contains(kw))
             | exists(col("content.texts.h2"), lambda x: lower(x).contains(kw))
             | exists(col("content.texts.p"), lambda x: lower(x).contains(kw))
@@ -64,9 +66,10 @@ def search_uris(query: str, max_results: int = 1000):
         cond = kw_cond if cond is None else (cond | kw_cond)
 
     # Filtrar por coincidencias en cualquiera de las palabras usando el DF actualizado
+    # Primero construimos la URL para poder filtrar sobre ella
     df_filtered = (
-        df_latest.filter(cond)
-        .withColumn("url", concat_ws("", lit("https://"), col("domain"), col("real_path")))
+        df_latest.withColumn("url", concat_ws("", lit("https://"), col("domain"), col("real_path")))
+        .filter(cond)
         .select("url")
         .distinct()
     )
@@ -84,7 +87,11 @@ def search_uris(query: str, max_results: int = 1000):
             when((col("url") == clean_query) | (col("url") == "https://" + clean_query), lit(1))
             .otherwise(lit(0))
         )
-        .orderBy(col("is_exact_match").desc(), col("external_refs").desc())
+        .withColumn("is_url_partial_match",
+            when(col("url").contains(clean_query), lit(1))
+            .otherwise(lit(0))
+        )
+        .orderBy(col("is_exact_match").desc(), col("is_url_partial_match").desc(), col("external_refs").desc())
     )
 
     # Iterar resultados
