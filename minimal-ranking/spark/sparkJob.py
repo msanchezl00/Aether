@@ -1,6 +1,7 @@
 import json
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, array_contains, concat_ws, lit, explode, lower, count, exists, row_number, desc
+from pyspark.sql.functions import col, array_contains, concat_ws, lit, explode, lower, count, exists, row_number, desc, when
+
 from pyspark.sql.window import Window
 from py4j.java_gateway import java_import
 
@@ -38,7 +39,17 @@ df = (
 )
 
 def search_uris(query: str, max_results: int = 1000):
-    # Separar palabras clave
+    # 1. Quedarse solo con la última versión de cada URL antes de buscar
+    # Usamos domain y real_path para identificar la URL única
+    windowSpec = Window.partitionBy("domain", "real_path").orderBy(col("date").desc())
+    
+    df_latest = (
+        df.withColumn("rn", row_number().over(windowSpec))
+        .filter(col("rn") == 1)
+        .drop("rn")
+    )
+
+    # 2. Separar palabras clave
     keywords = [w.lower() for w in query.split() if w.strip()]
 
     # Construir filtro dinámico con OR entre todas las palabras
@@ -52,9 +63,9 @@ def search_uris(query: str, max_results: int = 1000):
         )
         cond = kw_cond if cond is None else (cond | kw_cond)
 
-    # Filtrar por coincidencias en cualquiera de las palabras
+    # Filtrar por coincidencias en cualquiera de las palabras usando el DF actualizado
     df_filtered = (
-        df.filter(cond)
+        df_latest.filter(cond)
         .withColumn("url", concat_ws("", lit("https://"), col("domain"), col("real_path")))
         .select("url")
         .distinct()
@@ -63,11 +74,17 @@ def search_uris(query: str, max_results: int = 1000):
     # Traer external_refs ya precalculado
     df_score = df.select("url", "external_refs").distinct()
 
-    # Unir y ordenar
+    # Unir y ordenar (Prioridad: Coincidencia exacta de URL > Score)
+    clean_query = query.strip()
+
     df_result = (
         df_filtered.join(df_score, "url", "left")
         .fillna(0, subset=["external_refs"])
-        .orderBy(col("external_refs").desc())
+        .withColumn("is_exact_match", 
+            when((col("url") == clean_query) | (col("url") == "https://" + clean_query), lit(1))
+            .otherwise(lit(0))
+        )
+        .orderBy(col("is_exact_match").desc(), col("external_refs").desc())
     )
 
     # Iterar resultados
