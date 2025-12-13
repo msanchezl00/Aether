@@ -70,15 +70,21 @@ func (s *Service) Fetch(url string, timeout float32) ([]byte, error) {
 	return htmlUTF8, nil
 }
 
-// Inicializador: Lanza el navegador una sola vez
 func NewFetcherService() (*Service, error) {
-	// Lanza el ejecutable de Chromium una sola vez y obtén la URL de control
-	controlURL := launcher.New().
-		Headless(true).
-		MustLaunch() // Lanza Chromium solo una vez
+	// Configuramos el launcher con opciones específicas para Docker/ARM64
+	u := launcher.New().
+		// 1. Forzamos el uso del binario que instalamos en el Dockerfile (Debian)
+		Bin("/usr/bin/chromium").
 
-	// Conecta Rod a la instancia de Chromium
-	browser := rod.New().ControlURL(controlURL).MustConnect()
+		// 2. IMPORTANTE: Docker corre como root, Chromium requiere esto para funcionar
+		Set("no-sandbox", "true").
+
+		// 3. Opcional: Ayuda a evitar crasheos por memoria compartida en contenedores
+		Set("disable-dev-shm-usage", "true").
+		Headless(true).
+		MustLaunch()
+
+	browser := rod.New().ControlURL(u).MustConnect()
 
 	return &Service{
 		browser: browser,
