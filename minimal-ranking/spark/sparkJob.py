@@ -1,8 +1,8 @@
 import json
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, array_contains, concat_ws, lit
+from pyspark.sql.functions import col, array_contains, concat_ws, lit, explode, lower, count, exists, row_number, desc
+from pyspark.sql.window import Window
 from py4j.java_gateway import java_import
-from pyspark.sql.functions import col, array_contains, explode, lower, concat_ws, lit, count, exists, explode, col, count, concat_ws, lit
 
 # Cargar configuración
 with open("config/spark_config.json") as f:
@@ -99,8 +99,9 @@ def get_crawled_data(url: str):
 
     # Filtrar por la url construida
     res_df = (
-        df.withColumn("constructed_url", concat_ws("", lit("https://"), col("domain"), col("real_path")))
-        .filter(col("constructed_url").isin(candidates))
+        df.withColumn("url", concat_ws("", lit("https://"), col("domain"), col("real_path")))
+        .filter(col("url").isin(candidates))
+        .orderBy(col("date").desc())
     )
     
     # Recolectar y convertir a diccionario
@@ -123,43 +124,71 @@ def load_hdfs_parquet_data():
     spark.catalog.clearCache()
 
     # Cargar datos originales
-    df = (
+    raw_df = (
         spark.read.format("avro")
         .option("recursiveFileLookup", "true")
         .load(cfg["hdfs_base_path"])
     )
 
-    # Crear DataFrame con todos los links salientes
-    df_links = (
-        df.select(explode(col("content.links.https")).alias("link"))
-        .union(df.select(explode(col("content.links.http")).alias("link")))
+    # --- INICIO DEDUPLICACIÓN (Mantenemos histórico diario) ---
+    # Creamos la URL para poder identificar duplicados
+    raw_df = raw_df.withColumn("url", concat_ws("", lit("https://"), col("domain"), col("real_path")))
+    
+    # 1. Limpieza Intra-día: Nos quedamos solo con 1 copia por (URL, Fecha)
+    # Si se crawleó 5 veces hoy, queda 1. Si se crawleó ayer y hoy, quedan 2.
+    windowDaily = Window.partitionBy("url", "date").orderBy(lit(1)) # Orden arbitrario si no hay hora
+    
+    df_history = (
+        raw_df.withColumn("rn", row_number().over(windowDaily))
+        .filter(col("rn") == 1)
+        .drop("rn")
+    )
+    # --- FIN DEDUPLICACIÓN ---
+
+    # --- CÁLCULO DE RANKING (Solo basado en la foto MÁS RECIENTE) ---
+    # Para no inflar los votos, calculamos los links usando solo la última versión de cada página.
+    windowLatest = Window.partitionBy("url").orderBy(col("date").desc())
+    
+    df_latest_snapshot = (
+        df_history.withColumn("rn_latest", row_number().over(windowLatest))
+        .filter(col("rn_latest") == 1) # Solo la última versión de cada URL
+        .select("url", "content") # Solo necesitamos URL y contenido para sacar links
     )
 
-    # Contar cuántas veces cada link aparece referenciado
+    # Crear DataFrame de links usando solo el snapshot actual
+    df_links = (
+        df_latest_snapshot.select(explode(col("content.links.https")).alias("link"))
+        .union(df_latest_snapshot.select(explode(col("content.links.http")).alias("link")))
+    )
+
+    # Contar votos (external_refs) basándonos en el presente
     df_ref_count = (
         df_links.groupBy("link")
         .agg(count("*").alias("external_refs"))
     )
 
-    # Crear URL canónica por página
-    df = df.withColumn("url", concat_ws("", lit("https://"), col("domain"), col("real_path")))
+    # --- UNIÓN Y ESCRITURA ---
+    # Unimos los scores calculados a TODO el histórico.
+    # Así, las versiones antiguas también tendrán el score "actual" (o 0), lo cual es útil para búsquedas.
+    
+    # Limpiamos columna previa si existe
+    if "external_refs" in df_history.columns:
+        df_history = df_history.drop("external_refs")
 
-    # Unir conteo con el dataset original
-    if "external_refs" in df.columns:
-        df = df.drop("external_refs")
-
-    df = (
-        df.join(df_ref_count, df.url == df_ref_count.link, "left")
+    df_final = (
+        df_history.join(df_ref_count, df_history.url == df_ref_count.link, "left")
         .drop(df_ref_count.link)
         .fillna(0, subset=["external_refs"])
     )
+    
+    # Actualizar la referencia global para las búsquedas en memoria
+    df = df_final
 
     # Escribir en un path temporal con particionado
-    # Usamos particionado para mantener la estructura, luego corregimos nombres de carpetas
     temp_path = cfg["hdfs_base_path"] + "_tmp"
     
-    # Duplicamos columas para particionar sin perderlas del contenido del archivo
-    df_write = df.withColumn("domain_p", col("domain")).withColumn("date_p", col("date"))
+    # Duplicamos columas para particionar
+    df_write = df_final.withColumn("domain_p", col("domain")).withColumn("date_p", col("date"))
 
     (
         df_write.write

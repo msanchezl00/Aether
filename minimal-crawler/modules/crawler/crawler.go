@@ -8,6 +8,7 @@ import (
 	"minimal-crawler/modules/storage"
 	"minimal-crawler/utils"
 	"sync"
+	"time"
 )
 
 type Handler struct {
@@ -21,12 +22,14 @@ type Handler struct {
 var pool chan struct{}
 var wg sync.WaitGroup
 var mu sync.Mutex
-var crawledDomains []string
+var crawledDomains map[string]time.Time = make(map[string]time.Time)
 var notCrawledDomains []string
 
 func (h *Handler) InitCrawler(ctx context.Context) {
 	// los defer se resuelven el LIFO
 	defer config.Logger.Info("crawler finished successfully")
+	defer config.Logger.Info("headless browser closed successfully")
+	defer h.FetcherService.CloseBrowser()
 	// proceso padre espera a que las goroutines mueran
 	defer wg.Wait()
 
@@ -80,7 +83,7 @@ func (h *Handler) Crawler(rawURL string, crawledInternalURLs *[]string, isIntern
 		}
 
 		// agregar la url que se va a crawlear a la lista de dominios crawleados
-		flag := appendAndVerifyCrawledDomain(domain)
+		flag := appendAndVerifyCrawledDomain(domain, h.CrawlerConfing.ExpiryHours)
 		if !flag {
 			return
 		}
@@ -153,19 +156,22 @@ func (h *Handler) Crawler(rawURL string, crawledInternalURLs *[]string, isIntern
 	}
 }
 
-func appendAndVerifyCrawledDomain(domain string) bool {
+func appendAndVerifyCrawledDomain(domain string, expiryHours int32) bool {
 	mu.Lock()
 	defer mu.Unlock()
 
 	notCrawledDomains = utils.RemoveDomain(notCrawledDomains, domain)
 
-	for _, crawledDomain := range crawledDomains {
+	for crawledDomain, crawledDate := range crawledDomains {
+		if crawledDate.Add(time.Hour * time.Duration(expiryHours)).Before(time.Now()) {
+			delete(crawledDomains, crawledDomain)
+		}
 		if crawledDomain == domain {
 			return false
 		}
 	}
 
-	crawledDomains = append(crawledDomains, domain)
+	crawledDomains[domain] = time.Now()
 	return true
 }
 
@@ -179,7 +185,7 @@ func appendAndVerifyNotCrawledDomains(notCrawledURLsAux []string) {
 	}
 
 	CrawledMap := make(map[string]struct{})
-	for _, domain := range crawledDomains {
+	for domain := range crawledDomains {
 		CrawledMap[domain] = struct{}{}
 	}
 

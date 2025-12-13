@@ -10,10 +10,10 @@ import (
 	"time"
 )
 
-func VerifyDomainsAndInternal(crawledDomains []string, newRawUrls []string, crawledInternalURLs []string, newInternalURLs []string, mainRawURL string) ([]string, []string, error) {
+func VerifyDomainsAndInternal(crawledDomains map[string]time.Time, newRawUrls []string, crawledInternalURLs []string, newInternalURLs []string, mainRawURL string) ([]string, []string, error) {
 	// Crear un mapa para los dominios crawled
 	crawledDomainsMap := make(map[string]struct{})
-	for _, domain := range crawledDomains {
+	for domain := range crawledDomains {
 		crawledDomainsMap[domain] = struct{}{}
 	}
 
