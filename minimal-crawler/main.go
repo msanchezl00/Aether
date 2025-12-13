@@ -90,8 +90,10 @@ func main() {
 	// la interfaz, de esta manera solo tienes acceso a las funciones definidas en la interfaz
 	// tambien permite modificar el objeto original y no perder la informacion
 	// en tiempo de ejecucion
-	fetcher := &fetcher.Service{
-		FetcherConfig: config.FetcherConfig{},
+	fetcher, err := fetcher.NewFetcherService()
+	if err != nil {
+		config.Logger.Errorf("Error creating fetcher service: %v", err)
+		return
 	}
 
 	// creacion del parser

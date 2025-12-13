@@ -12,6 +12,7 @@ import (
 
 type Service struct {
 	FetcherConfig config.FetcherConfig
+	browser       *rod.Browser
 }
 
 func (s *Service) Fetch(url string, timeout float32) ([]byte, error) {
@@ -69,17 +70,36 @@ func (s *Service) Fetch(url string, timeout float32) ([]byte, error) {
 	return htmlUTF8, nil
 }
 
-func (s *Service) FetchRendered(url string, timeout float32) ([]byte, error) {
-	// Lanzar browser headless con Rod (usa Chromium automático)
-	browser := rod.New().ControlURL(
-		launcher.New().
-			Headless(true). // Headless
-			MustLaunch(),   // Descarga Chromium si no existe
-	).MustConnect()
-	defer browser.MustClose()
+// Inicializador: Lanza el navegador una sola vez
+func NewFetcherService() (*Service, error) {
+	// Lanza el ejecutable de Chromium una sola vez y obtén la URL de control
+	controlURL := launcher.New().
+		Headless(true).
+		MustLaunch() // Lanza Chromium solo una vez
 
-	// Abrir página
-	page := browser.MustPage(url)
+	// Conecta Rod a la instancia de Chromium
+	browser := rod.New().ControlURL(controlURL).MustConnect()
+
+	return &Service{
+		browser: browser,
+	}, nil
+}
+
+// Método de cierre para el servicio (llámalo al finalizar la aplicación)
+func (s *Service) CloseBrowser() {
+	if s.browser != nil {
+		s.browser.MustClose()
+	}
+}
+
+// Método de Concurrencia Segura: Solo abre una pestaña
+func (s *Service) FetchRendered(url string, timeout float32) ([]byte, error) {
+	// **USAR EL NAVEGADOR COMPARTIDO (s.browser)**
+
+	// Abrir una nueva pestaña (Page) en el navegador existente
+	page := s.browser.MustPage(url)
+	// Asegúrate de cerrar la pestaña cuando la goroutine termine
+	defer page.MustClose()
 
 	// Esperar body renderizado
 	page.MustElement("body").MustWaitVisible()

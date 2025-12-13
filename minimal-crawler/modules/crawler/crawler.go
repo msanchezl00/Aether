@@ -28,6 +28,8 @@ var notCrawledDomains []string
 func (h *Handler) InitCrawler(ctx context.Context) {
 	// los defer se resuelven el LIFO
 	defer config.Logger.Info("crawler finished successfully")
+	defer config.Logger.Info("headless browser closed successfully")
+	defer h.FetcherService.CloseBrowser()
 	// proceso padre espera a que las goroutines mueran
 	defer wg.Wait()
 
