@@ -15,6 +15,27 @@ type Service struct {
 	browser       *rod.Browser
 }
 
+func NewFetcherService(chromiumBinPath string) (*Service, error) {
+	// Configuramos el launcher con opciones específicas para Docker/ARM64
+	u := launcher.New().
+		// 1. Forzamos el uso del binario que instalamos en el Dockerfile (Debian)
+		Bin(chromiumBinPath).
+
+		// 2. IMPORTANTE: Docker corre como root, Chromium requiere esto para funcionar
+		Set("no-sandbox", "true").
+
+		// 3. Opcional: Ayuda a evitar crasheos por memoria compartida en contenedores
+		Set("disable-dev-shm-usage", "true").
+		Headless(true).
+		MustLaunch()
+
+	browser := rod.New().ControlURL(u).MustConnect()
+
+	return &Service{
+		browser: browser,
+	}, nil
+}
+
 func (s *Service) Fetch(url string, timeout float32) ([]byte, error) {
 	// Fetch normal primero
 	htmlUTF8, err := utils.GetRequest(url, timeout)
@@ -68,27 +89,6 @@ func (s *Service) Fetch(url string, timeout float32) ([]byte, error) {
 
 	// Retornar fetch normal
 	return htmlUTF8, nil
-}
-
-func NewFetcherService() (*Service, error) {
-	// Configuramos el launcher con opciones específicas para Docker/ARM64
-	u := launcher.New().
-		// 1. Forzamos el uso del binario que instalamos en el Dockerfile (Debian)
-		Bin("/usr/bin/chromium").
-
-		// 2. IMPORTANTE: Docker corre como root, Chromium requiere esto para funcionar
-		Set("no-sandbox", "true").
-
-		// 3. Opcional: Ayuda a evitar crasheos por memoria compartida en contenedores
-		Set("disable-dev-shm-usage", "true").
-		Headless(true).
-		MustLaunch()
-
-	browser := rod.New().ControlURL(u).MustConnect()
-
-	return &Service{
-		browser: browser,
-	}, nil
 }
 
 // Método de cierre para el servicio (llámalo al finalizar la aplicación)

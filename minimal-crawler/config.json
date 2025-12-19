@@ -19,7 +19,7 @@
         "kafka-broker:9092"
     ],
     "producer-topic": "crawled_data",
-    "retryDelays": [
+    "retry-delays": [
         1000,
         2000,
         5000,
@@ -28,5 +28,7 @@
     ],
     "timeout": 3.2,
     "workers": 30,
-    "expiryHours": 24
+    "expiry-hours": 24,
+    "chromium-bin-path": "/usr/bin/chromium",
+    "req-per-second": 100
 }
