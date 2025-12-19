@@ -29,6 +29,8 @@ func (s *Service) initWriter() {
 
 // recursivo con índice de intento
 func (s *Service) KafkaStorage(payload []byte, attempt int) error {
+
+	s.StorageConfig.Limiter.Wait(context.Background())
 	s.initWriter()
 
 	msg := kafka.Message{

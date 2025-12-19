@@ -11,24 +11,29 @@ import (
 	storage "minimal-crawler/modules/storage"
 	"os"
 	"time"
+
+	"golang.org/x/time/rate"
 )
 
 // estructura de la configuracion del json
 var Config struct {
-	Seeds     []map[string]int `json:"seeds"`
-	Robots    bool             `json:"robots"`
-	Recursive bool             `json:"recursive"`
-	Data      struct {
+	Seeds       []map[string]int `json:"seeds"`
+	Robots      bool             `json:"robots"`
+	Recursive   bool             `json:"recursive"`
+	ExpiryHours int32            `json:"expiry-hours"`
+	Data        struct {
 		Metadata bool `json:"metadata"`
 		Links    bool `json:"links"`
 		Text     bool `json:"text"`
 		Images   bool `json:"images"`
 	} `json:"data"`
-	Brokers       []string `json:"brokers"`
-	ProducerTopic string   `json:"producer-topic"`
-	RetryDelays   []int    `json:"retryDelays"`
-	Timeout       float32  `json:"timeout"`
-	Workers       int32    `json:"workers"`
+	Brokers         []string `json:"brokers"`
+	ProducerTopic   string   `json:"producer-topic"`
+	RetryDelays     []int    `json:"retry-delays"`
+	Timeout         float32  `json:"timeout"`
+	Workers         int32    `json:"workers"`
+	ChromiumBinPath string   `json:"chromium-bin-path"`
+	ReqPerSecond    int      `json:"req-per-second"`
 }
 
 func main() {
@@ -58,6 +63,14 @@ func main() {
 		config.Logger.Errorf("Error unmarshaling config file: %v", err)
 		return
 	}
+
+	b, err := json.MarshalIndent(Config, "", "  ")
+	if err != nil {
+		config.Logger.Errorf("Error al serializar config: %v", err)
+		return
+	}
+
+	config.Logger.Infof("Configuración cargada:\n%s", string(b))
 
 	// sobreescribimos la configuracion de seeds si existe la variable de entorno
 	if seedsEnv := os.Getenv("CONF_SEEDS"); seedsEnv != "" {
@@ -90,9 +103,9 @@ func main() {
 	// la interfaz, de esta manera solo tienes acceso a las funciones definidas en la interfaz
 	// tambien permite modificar el objeto original y no perder la informacion
 	// en tiempo de ejecucion
-	fetcher, err := fetcher.NewFetcherService()
+	fetcher, err := fetcher.NewFetcherService(Config.ChromiumBinPath)
 	if err != nil {
-		config.Logger.Errorf("Error creating fetcher service: %v", err)
+		config.Logger.Errorf("Error creating fetcher service: %v with headless browser path %s", err, Config.ChromiumBinPath)
 		return
 	}
 
@@ -117,6 +130,7 @@ func main() {
 			Brokers:       Config.Brokers,
 			ProducerTopic: Config.ProducerTopic,
 			RetryDelays:   retryDurations,
+			Limiter:       rate.NewLimiter(rate.Limit(Config.ReqPerSecond), 1),
 		},
 	}
 
@@ -125,11 +139,12 @@ func main() {
 	// control de flujo de la aplicacion
 	crawler := &crawler.Handler{
 		CrawlerConfing: config.CrawlerConfig{
-			Seeds:     Config.Seeds,
-			Recursive: Config.Recursive,
-			Timeout:   Config.Timeout,
-			Workers:   Config.Workers,
-			Robots:    Config.Robots,
+			Seeds:       Config.Seeds,
+			Recursive:   Config.Recursive,
+			Timeout:     Config.Timeout,
+			Workers:     Config.Workers,
+			Robots:      Config.Robots,
+			ExpiryHours: Config.ExpiryHours,
 		},
 		FetcherService: fetcher,
 		ParserService:  parser,
