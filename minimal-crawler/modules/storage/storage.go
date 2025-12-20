@@ -21,7 +21,7 @@ func (s *Service) initWriter() {
 		config.Logger.Infof("Conectando a brokers: %v\n", s.StorageConfig.Brokers)
 		s.writer = kafka.NewWriter(kafka.WriterConfig{
 			Brokers:    s.StorageConfig.Brokers,
-			BatchBytes: 50 * 1024 * 1024, // 50 MB máximo por batch
+			BatchBytes: s.StorageConfig.MaxBytes,
 			Balancer:   &kafka.LeastBytes{},
 		})
 	})

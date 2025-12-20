@@ -16,8 +16,9 @@ func (s *Service) Consumer(ctx context.Context, handler func(kafka.Message)) err
 	r := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:  s.ConsumerConfig.Brokers,
 		Topic:    s.ConsumerConfig.ConsumerTopic,
-		MinBytes: 10e3,             // 10KB
-		MaxBytes: 50 * 1024 * 1024, // 50 MB máximo por fetch
+		GroupID:  s.ConsumerConfig.GroupID,
+		MinBytes: s.ConsumerConfig.MinBytes,
+		MaxBytes: s.ConsumerConfig.MaxBytes,
 	})
 
 	defer r.Close()

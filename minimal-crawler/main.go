@@ -34,6 +34,7 @@ var Config struct {
 	Workers         int32    `json:"workers"`
 	ChromiumBinPath string   `json:"chromium-bin-path"`
 	ReqPerSecond    int      `json:"req-per-second"`
+	MaxBytes        int      `json:"max-bytes"`
 }
 
 func main() {
@@ -129,6 +130,7 @@ func main() {
 		StorageConfig: config.StorageConfig{
 			Brokers:       Config.Brokers,
 			ProducerTopic: Config.ProducerTopic,
+			MaxBytes:      Config.MaxBytes,
 			RetryDelays:   retryDurations,
 			Limiter:       rate.NewLimiter(rate.Limit(Config.ReqPerSecond), 1),
 		},

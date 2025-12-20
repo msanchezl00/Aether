@@ -30,5 +30,6 @@
     "workers": 30,
     "expiry-hours": 24,
     "chromium-bin-path": "/usr/bin/chromium",
-    "req-per-second": 100
+    "req-per-second": 100,
+    "max-bytes": 52428800
 }

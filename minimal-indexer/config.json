@@ -1,9 +1,18 @@
 {
-    "brokers":[
+    "brokers": [
         "kafka-broker:9092"
     ],
     "producer-topic": "parquet_data",
     "consumer-topic": "crawled_data",
-    "retryDelays": [1000, 2000, 5000, 10000, 20000],
+    "group-id": "indexer",
+    "retry-delays": [
+        1000,
+        2000,
+        5000,
+        10000,
+        20000
+    ],
+    "min-bytes": 10000,
+    "max-bytes": 52428800,
     "workers": 15
 }

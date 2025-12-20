@@ -18,7 +18,10 @@ var Config struct {
 	Brokers       []string `json:"brokers"`
 	ProducerTopic string   `json:"producer-topic"`
 	ConsumerTopic string   `json:"consumer-topic"`
-	RetryDelays   []int    `json:"retryDelays"`
+	RetryDelays   []int    `json:"retry-delays"`
+	GroupID       string   `json:"group-id"`
+	MinBytes      int      `json:"min-bytes"`
+	MaxBytes      int      `json:"max-bytes"`
 	Workers       int      `json:"workers"`
 }
 
@@ -55,6 +58,20 @@ func main() {
 		config.Logger.Errorf("Error unmarshaling config file: %v", err)
 		return
 	}
+
+	// deserializamos el json del array de bytes y lo guardamos en
+	// la variable general Config
+	err = json.Unmarshal(fileByte, &Config)
+	if err != nil {
+		config.Logger.Errorf("Error unmarshaling config file: %v", err)
+		return
+	}
+	b, err := json.MarshalIndent(Config, "", "  ")
+	if err != nil {
+		config.Logger.Errorf("Error al serializar config: %v", err)
+		return
+	}
+	config.Logger.Infof("Configuración cargada:\n%s", string(b))
 
 	// sobreescribimos la configuracion de brokers si existe la variable de entorno
 	if brokersEnv := os.Getenv("CONF_BROKERS"); brokersEnv != "" {
@@ -107,6 +124,9 @@ func main() {
 		ConsumerConfig: config.ConsumerConfig{
 			Brokers:       Config.Brokers,
 			ConsumerTopic: Config.ConsumerTopic,
+			GroupID:       Config.GroupID,
+			MinBytes:      Config.MinBytes,
+			MaxBytes:      Config.MaxBytes,
 		},
 	}
 
