@@ -43,9 +43,9 @@ def create_index(output_path: str = None):
     return {"message": result}
 
 @router.get("/get_inverted_index")
-def get_index_sample(limit: int = 20):
+def get_index_sample(limit: int = 20, token: str = None):
     try:
-        result = get_inverted_index_sample(limit)
+        result = get_inverted_index_sample(limit, token)
         return result
     except Exception as e:
         import traceback

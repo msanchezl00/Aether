@@ -388,11 +388,11 @@ def create_invert_index(output_path: str = None):
 
     # ... Resto igual ...
     
-    # AÑADIDO: domain, real_path (split por /), tags
+    # AÑADIDO: domain, real_path (split por / y -), tags
     df_tokens = df_latest.withColumn("all_text", 
         concat_ws(" ", 
             col("domain"), 
-            regexp_replace(col("real_path"), "/", " "),
+            regexp_replace(col("real_path"), "[/-]", " "),
             col("url"),
             concat_ws(" ", col("tags")),
             concat_ws(" ", col("content.texts.h1")),
@@ -448,9 +448,10 @@ def create_invert_index(output_path: str = None):
     return f"Inverted index created at {output_path}"
 
 
-def get_inverted_index_sample(limit: int = 20):
+def get_inverted_index_sample(limit: int = 20, token: str = None):
     """
     Devuelve una muestra del índice invertido para inspección.
+    Permite filtrar por un token específico para verificar integridad.
     """
     init_spark()
     
@@ -458,6 +459,10 @@ def get_inverted_index_sample(limit: int = 20):
     
     try:
         df_index = spark.read.parquet(index_path)
+        
+        if token:
+            df_index = df_index.filter(col("token") == token)
+            
         # Convertir a lista de dicts
         # Ojo: 'docs' es una lista de hashes.
         rows = df_index.limit(limit).collect()
