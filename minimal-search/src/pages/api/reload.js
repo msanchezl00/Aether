@@ -9,7 +9,7 @@ export async function GET() {
     }
 
     const res2 = await fetch("http://ranking:8000/create_invert_index", {
-      method: "GET",
+      method: "POST",
     });
 
     if (!res2.ok) {

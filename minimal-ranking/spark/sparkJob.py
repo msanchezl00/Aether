@@ -388,9 +388,13 @@ def create_invert_index(output_path: str = None):
 
     # ... Resto igual ...
     
-    # Primero unimos todos los arrays de texto en uno solo gigante por fila
+    # AÑADIDO: domain, real_path (split por /), tags
     df_tokens = df_latest.withColumn("all_text", 
         concat_ws(" ", 
+            col("domain"), 
+            regexp_replace(col("real_path"), "/", " "),
+            col("url"),
+            concat_ws(" ", col("tags")),
             concat_ws(" ", col("content.texts.h1")),
             concat_ws(" ", col("content.texts.h2")),
             concat_ws(" ", col("content.texts.p"))
