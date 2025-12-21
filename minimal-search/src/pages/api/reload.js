@@ -1,11 +1,19 @@
 export async function GET() {
   try {
-    const res = await fetch("http://ranking:8000/load_hdfs_parquet_data", {
+    const res = await fetch("http://ranking:8000/process_hdfs_avro_data", {
       method: "GET",
     });
 
     if (!res.ok) {
       return new Response(JSON.stringify({ error: "Fallo en backend" }), { status: res.status });
+    }
+
+    const res2 = await fetch("http://ranking:8000/create_invert_index", {
+      method: "GET",
+    });
+
+    if (!res2.ok) {
+      return new Response(JSON.stringify({ error: "Fallo en backend" }), { status: res2.status });
     }
 
     return new Response(JSON.stringify({ success: true }), {
