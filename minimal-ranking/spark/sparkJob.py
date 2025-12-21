@@ -1,88 +1,181 @@
 import json
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, array_contains, concat_ws, lit, explode, lower, count, exists, row_number, desc, when
-
+from functools import reduce
 from pyspark.sql.window import Window
 from py4j.java_gateway import java_import
+from pyspark.sql.functions import hash as spark_hash, split, transform, trim, array, array_union, collect_set, regexp_replace
 
-# Cargar configuración
-with open("config/spark_config.json") as f:
-    cfg = json.load(f)
+# Variables globales para mantener el estado
+spark = None
+sc = None
+fs = None
+df = None
+cfg = None
 
-# Inicializar SparkSession
-spark = (
-    SparkSession.builder
-    .appName(cfg["app_name"])
-    .master(cfg["master"])
-    .config("spark.executor.memory", cfg["executor_memory"])
-    .config("spark.driver.memory", cfg["driver_memory"])
-    .config("spark.executor.cores", cfg["executor_cores"])
-    .config("spark.hadoop.fs.defaultFS", cfg["hdfs_base_path"])
-    .config("spark.jars.packages", "org.apache.spark:spark-avro_2.12:3.5.1")
-    .config("spark.sql.catalogImplementation", "in-memory")
-    .config("spark.network.timeout", "600s")
-    .config("spark.executor.heartbeatInterval", "100s")
-    .getOrCreate()
-)
+def _load_raw_data(allow_missing_columns=True):
+    """
+    Helper function to load raw data from HDFS handling both Avro and Parquet formats.
+    Returns a DataFrame containing the union of both formats if present.
+    """
+    df_parquet = None
+    df_avro = None
+    
+    # 1. Intentar leer Parquet
+    try:
+        df_parquet = spark.read.format("parquet") \
+            .option("pathGlobFilter", "*.parquet") \
+            .option("recursiveFileLookup", "true") \
+            .load(cfg["hdfs_base_path"])
+    except Exception:
+        pass 
 
-# Acceso al FileSystem de HDFS
-sc = spark.sparkContext
-java_import(sc._gateway.jvm, "org.apache.hadoop.fs.FileSystem")
-java_import(sc._gateway.jvm, "org.apache.hadoop.fs.Path")
-fs = sc._gateway.jvm.FileSystem.get(sc._jsc.hadoopConfiguration())
+    # 2. Intentar leer Avro
+    try:
+        df_avro = spark.read.format("avro") \
+            .option("pathGlobFilter", "*.avro") \
+            .option("recursiveFileLookup", "true") \
+            .load(cfg["hdfs_base_path"])
+    except Exception:
+        pass 
 
-# Leer todos los Avro recursivamente
-df = (
-    spark.read.format("avro")
-    .option("recursiveFileLookup", "true")
-    .load(cfg["hdfs_base_path"])
-)
+    # 3. Unir resultados
+    if df_parquet is not None and df_avro is not None:
+        print("Loaded mixed Parquet and Avro data.")
+        return df_parquet.unionByName(df_avro, allowMissingColumns=allow_missing_columns)
+    elif df_parquet is not None:
+        print("Loaded only Parquet data.")
+        return df_parquet
+    elif df_avro is not None:
+        print("Loaded only Avro data.")
+        return df_avro
+    else:
+        print("Warning: Could not load any data. Returning empty DataFrame.")
+        from pyspark.sql.types import StructType, StructField, StringType
+        schema = StructType([
+            StructField("url", StringType(), True),
+            StructField("domain", StringType(), True),
+            StructField("real_path", StringType(), True),
+            StructField("date", StringType(), True),
+            StructField("content", StringType(), True), 
+            StructField("external_refs", StringType(), True)
+        ])
+        return spark.createDataFrame([], schema=schema)
+
+def init_spark():
+    """
+    Inicializa la sesión de Spark, el contexto, el sistema de archivos y carga los datos.
+    Se ejecuta de manera perezosa (lazy) cuando se necesita.
+    """
+    global spark, sc, fs, df, cfg
+
+    if spark is not None:
+        return
+
+    print("Initializing Spark Session...")
+
+    # Cargar configuración
+    try:
+        with open("config/spark_config.json") as f:
+            cfg = json.load(f)
+    except Exception as e:
+        print(f"Error loading config: {e}")
+        raise
+
+    # Inicializar SparkSession
+    spark = (
+        SparkSession.builder
+        .appName(cfg["app_name"])
+        .master(cfg["master"])
+        .config("spark.executor.memory", cfg["executor_memory"])
+        .config("spark.driver.memory", cfg["driver_memory"])
+        .config("spark.executor.cores", cfg["executor_cores"])
+        .config("spark.hadoop.fs.defaultFS", cfg["hdfs_base_path"])
+        .config("spark.jars.packages", "org.apache.spark:spark-avro_2.12:3.5.1")
+        .config("spark.sql.catalogImplementation", "in-memory")
+        .config("spark.network.timeout", "600s")
+        .config("spark.executor.heartbeatInterval", "100s")
+        .config("spark.sql.parquet.mergeSchema", "true")
+        .getOrCreate()
+    )
+
+    # Acceso al FileSystem de HDFS
+    sc = spark.sparkContext
+    java_import(sc._gateway.jvm, "org.apache.hadoop.fs.FileSystem")
+    java_import(sc._gateway.jvm, "org.apache.hadoop.fs.Path")
+    fs = sc._gateway.jvm.FileSystem.get(sc._jsc.hadoopConfiguration())
+
+    # Cargar datos usando el helper robusto
+    df = _load_raw_data()
+
 
 def search_uris(query: str, max_results: int = 1000):
-    # 1. Quedarse solo con la última versión de cada URL antes de buscar
-    # Usamos domain y real_path para identificar la URL única
-    windowSpec = Window.partitionBy("domain", "real_path").orderBy(col("date").desc())
+    """
+    Busca URLs usando el índice invertido (Token -> URL Hash) y luego filtra el contenido.
+    """
+    init_spark()
     
-    df_latest = (
-        df.withColumn("rn", row_number().over(windowSpec))
-        .filter(col("rn") == 1)
-        .drop("rn")
-    )
+    # Path del índice y mappings
+    index_path = cfg["hdfs_base_path"] + "_inverted_index"
+    mappings_path = cfg["hdfs_base_path"] + "_inverted_index_mappings"
+    print(f"Searching index at: {index_path}")
 
-    # 2. Separar palabras clave
-    keywords = [w.lower() for w in query.split() if w.strip()]
+    
+    # 1. Tokenizar query
+    # Estandarización manual simple alineada con el indexer
+    import re
+    tokens = [w.lower() for w in re.split(r'\s+', query) if w.strip()]
+    
+    if not tokens:
+        return []
 
-    # Construir filtro dinámico con OR entre todas las palabras
-    cond = None
-    for kw in keywords:
-        kw_cond = (
-            col("domain").contains(kw)
-            | col("real_path").contains(kw)
-            | array_contains(col("tags"), kw)
-            | exists(col("content.texts.h1"), lambda x: lower(x).contains(kw))
-            | exists(col("content.texts.h2"), lambda x: lower(x).contains(kw))
-            | exists(col("content.texts.p"), lambda x: lower(x).contains(kw))
-        )
-        cond = kw_cond if cond is None else (cond | kw_cond)
+    # 2. Cargar Índice y filtrar candidatos
+    try:
+        df_index = spark.read.parquet(index_path)
+    except Exception as e:
+        print(f"Error loading inverted index: {e}. Fallback to full scan?")
+        return [] # O implementar fallback a scan completo
 
-    # Filtrar por coincidencias en cualquiera de las palabras usando el DF actualizado
-    # Primero construimos la URL para poder filtrar sobre ella
-    df_filtered = (
-        df_latest.withColumn("url", concat_ws("", lit("https://"), col("domain"), col("real_path")))
-        .filter(cond)
-        .select("url")
+    # Filtrar solo rows que coincidan con los tokens
+    # GroupBy y contar coincidencias para ranking básico pre-filtro?
+    # Por ahora: obtener TODOS los hashes que contengan AL MENOS UNO de los tokens (OR logic)
+    # Si quisieramos AND logic, haríamos intersection.
+    
+    # Explotamos los docs para tener: token | url_hash
+    # CAMBIO: Usamos 'startswith' para permitir búsqueda parcial (ej: "co" -> "coche")
+    conditions = [col("token").startswith(t) for t in tokens]
+    combined_condition = reduce(lambda a, b: a | b, conditions)
+
+    df_candidates = (
+        df_index.filter(combined_condition)
+        .select(explode(col("docs")).alias("url_hash"))
         .distinct()
     )
+    
+    # Recolectar candidatos (Si son pocos, es rápido. Si son millones, mejor join)
+    # Asumimos que para un buscador "minimal", collect es manejable o usamos join broadcast.
+    # Usaremos Join para escalar.
 
-    # Traer external_refs ya precalculado
-    df_score = df.select("url", "external_refs").distinct()
+    # 3. Cargar Mappings (Lightweight: Hash -> Title, URL, Score)
+    try:
+        df_mappings = spark.read.parquet(mappings_path)
+    except Exception as e:
+        print(f"Error loading mappings: {e}")
+        return []
 
-    # Unir y ordenar (Prioridad: Coincidencia exacta de URL > Score)
+    # 4. Join con Mappings (RÁPIDO)
+    # Solo nos quedamos con las páginas que aparecieron en el índice
+    df_filtered = df_mappings.join(df_candidates, "url_hash", "inner")
+
+    # 5. Ranking y Score
+    # Al usar mappings, ya tenemos el score y el título.
+    # No podemos hacer ranking fino de texto (h1, p) porque no cargamos el contenido.
+    # Confiamos en que el índice invertido "dice la verdad".
+    
     clean_query = query.strip()
-
+    
     df_result = (
-        df_filtered.join(df_score, "url", "left")
-        .fillna(0, subset=["external_refs"])
+        df_filtered
         .withColumn("is_exact_match", 
             when((col("url") == clean_query) | (col("url") == "https://" + clean_query), lit(1))
             .otherwise(lit(0))
@@ -92,14 +185,17 @@ def search_uris(query: str, max_results: int = 1000):
             .otherwise(lit(0))
         )
         .orderBy(col("is_exact_match").desc(), col("is_url_partial_match").desc(), col("external_refs").desc())
+        .limit(max_results)
     )
 
     # Iterar resultados
     urls_with_score = []
-    for row in df_result.toLocalIterator():
-        urls_with_score.append({"url": row["url"], "score": row["external_refs"]})
-        if len(urls_with_score) >= max_results:
-            break
+    for row in df_result.collect():
+        urls_with_score.append({
+            "url": row["url"], 
+            "title": row["title"], # Added Title
+            "score": row["external_refs"] if "external_refs" in row else 0
+        })
 
     return urls_with_score
 
@@ -109,6 +205,8 @@ def get_crawled_data(url: str):
     Obtiene toda la información crawleada para una URL específica (dominio + path).
     Retorna una lista de diccionarios con los datos encontrados.
     """
+    init_spark()
+    
     # Normalizar entrada si falta protocolo (asumimos https por defecto según el esquema logico)
     target_url = url.strip()
     if not target_url.startswith("http"):
@@ -121,6 +219,8 @@ def get_crawled_data(url: str):
     else:
         candidates.append(target_url + "/")
 
+    print(f"Getting crawled data for candidates: {candidates}")
+
     # Filtrar por la url construida
     res_df = (
         df.withColumn("url", concat_ws("", lit("https://"), col("domain"), col("real_path")))
@@ -132,35 +232,34 @@ def get_crawled_data(url: str):
     data = []
     for row in res_df.collect():
         row_dict = row.asDict(recursive=True)
-        # Limpiar keys internas de spark/avro si molestan, o devolver todo
         data.append(row_dict)
         
     return data
 
 
-def load_hdfs_parquet_data():
+def process_hdfs_avro_data():
     """
-    Carga datos desde HDFS, calcula external_refs y sobrescribe el Avro original
+    Carga datos (Parquet/Avro), calcula external_refs y sobrescribe en formato PARQUET
     manteniendo la estructura de directorios domain/date.
     """
+    init_spark()
     global df
 
     spark.catalog.clearCache()
 
-    # Cargar datos originales
-    raw_df = (
-        spark.read.format("avro")
-        .option("recursiveFileLookup", "true")
-        .load(cfg["hdfs_base_path"])
-    )
+    # Cargar datos originales usando helper
+    raw_df = _load_raw_data()
+    
+    # Cachear para evitar errores de lectura si borramos el origen luego
+    raw_df.cache()
+    print(f"Loaded {raw_df.count()} rows.")
 
     # --- INICIO DEDUPLICACIÓN (Mantenemos histórico diario) ---
     # Creamos la URL para poder identificar duplicados
     raw_df = raw_df.withColumn("url", concat_ws("", lit("https://"), col("domain"), col("real_path")))
     
     # 1. Limpieza Intra-día: Nos quedamos solo con 1 copia por (URL, Fecha)
-    # Si se crawleó 5 veces hoy, queda 1. Si se crawleó ayer y hoy, quedan 2.
-    windowDaily = Window.partitionBy("url", "date").orderBy(lit(1)) # Orden arbitrario si no hay hora
+    windowDaily = Window.partitionBy("url", "date").orderBy(lit(1))
     
     df_history = (
         raw_df.withColumn("rn", row_number().over(windowDaily))
@@ -170,7 +269,6 @@ def load_hdfs_parquet_data():
     # --- FIN DEDUPLICACIÓN ---
 
     # --- CÁLCULO DE RANKING (Solo basado en la foto MÁS RECIENTE) ---
-    # Para no inflar los votos, calculamos los links usando solo la última versión de cada página.
     windowLatest = Window.partitionBy("url").orderBy(col("date").desc())
     
     df_latest_snapshot = (
@@ -192,10 +290,6 @@ def load_hdfs_parquet_data():
     )
 
     # --- UNIÓN Y ESCRITURA ---
-    # Unimos los scores calculados a TODO el histórico.
-    # Así, las versiones antiguas también tendrán el score "actual" (o 0), lo cual es útil para búsquedas.
-    
-    # Limpiamos columna previa si existe
     if "external_refs" in df_history.columns:
         df_history = df_history.drop("external_refs")
 
@@ -205,35 +299,34 @@ def load_hdfs_parquet_data():
         .fillna(0, subset=["external_refs"])
     )
     
-    # Actualizar la referencia global para las búsquedas en memoria
+    # Actualizar la referencia global
     df = df_final
 
-    # Escribir en un path temporal con particionado
+    # Escribir en un path temporal con particionado PARQUET
     temp_path = cfg["hdfs_base_path"] + "_tmp"
     
-    # Duplicamos columas para particionar
+    # Duplicamos columas para particionar (Si usamos dynamic partition overwrite podria ser mas limpio, pero rename es seguro)
     df_write = df_final.withColumn("domain_p", col("domain")).withColumn("date_p", col("date"))
 
     (
         df_write.write
         .partitionBy("domain_p", "date_p")
-        .format("avro")
+        .format("parquet") # CAMBIO A PARQUET
         .mode("overwrite")
         .save(temp_path)
     )
 
-    # Reemplazar el path original por el temporal ajustando nombres de directorios
+    # Reemplazar el path original por el temporal
     sc = spark.sparkContext
     java_import(sc._gateway.jvm, "org.apache.hadoop.fs.FileSystem")
     java_import(sc._gateway.jvm, "org.apache.hadoop.fs.Path")
-    java_import(sc._gateway.jvm, "org.apache.hadoop.conf.Configuration")
 
     fs = sc._gateway.jvm.FileSystem.get(sc._jsc.hadoopConfiguration())
 
     tmp_path_obj = sc._gateway.jvm.Path(temp_path)
     original_path_obj = sc._gateway.jvm.Path(cfg["hdfs_base_path"])
 
-    # Renombrar carpetas de estilo Hive (domain_p=x) a estilo Connector (x)
+    # Renombrar carpetas
     if fs.exists(tmp_path_obj):
         for status in fs.listStatus(tmp_path_obj):
             path = status.getPath()
@@ -254,17 +347,117 @@ def load_hdfs_parquet_data():
                             new_sub_path = sc._gateway.jvm.Path(sub_path.getParent(), new_sub_name)
                             fs.rename(sub_path, new_sub_path)
 
+    # Borrar original y mover temp a original
     if fs.exists(original_path_obj):
         fs.delete(original_path_obj, True)
     fs.rename(tmp_path_obj, original_path_obj)
 
     spark.catalog.clearCache()
 
-    # Leer todos los Avro recursivamente de nuevo
-    df = (
-        spark.read.format("avro")
-        .option("recursiveFileLookup", "true")
-        .load(cfg["hdfs_base_path"])
+    # Recargar DF global usando helper robusto
+    df = _load_raw_data()
+
+    return f"topic {cfg['hdfs_base_path']} processed (Avro->Parquet) and updated with external_refs successfully"
+
+
+def create_invert_index(output_path: str = None):
+    """
+    Crea un índice invertido (Token -> [Lista de Hashes de URL]) a partir de la última versión
+    de cada página crawleada.
+    Se normaliza el texto (h1, h2, p), se tokeniza y se agrupa.
+    """
+    init_spark()
+    
+    if not output_path:
+        output_path = cfg["hdfs_base_path"] + "_inverted_index"
+
+    # Cargar datos originales del helper
+    raw_df = _load_raw_data()
+
+    # Construir URL
+    df_with_url = raw_df.withColumn("url", concat_ws("", lit("https://"), col("domain"), col("real_path")))
+
+    # Ventana para quedarse con la última fecha
+    windowLatest = Window.partitionBy("url").orderBy(col("date").desc())
+
+    df_latest = (
+        df_with_url.withColumn("rn", row_number().over(windowLatest))
+        .filter(col("rn") == 1)
+        .drop("rn")
     )
 
-    return f"topic {cfg['hdfs_base_path']} loaded and updated with external_refs successfully preserving structure"
+    # ... Resto igual ...
+    
+    # Primero unimos todos los arrays de texto en uno solo gigante por fila
+    df_tokens = df_latest.withColumn("all_text", 
+        concat_ws(" ", 
+            concat_ws(" ", col("content.texts.h1")),
+            concat_ws(" ", col("content.texts.h2")),
+            concat_ws(" ", col("content.texts.p"))
+        )
+    )
+
+    # Tokenizar: Limpiar texto (dejar solo letras y números) y luego separar
+    # Reemplazamos todo lo que NO sea alfanumérico por espacio
+    df_clean_text = df_tokens.withColumn("clean_text", regexp_replace(lower(col("all_text")), "[^a-z0-9áéíóúñ]+", " "))
+
+    df_exploded = (
+        df_clean_text.select(
+            col("url"),
+            spark_hash(col("url")).alias("url_hash"),
+            explode(split(trim(col("clean_text")), "\\s+")).alias("token")
+        )
+    )
+
+    df_clean_tokens = df_exploded.filter(col("token") != "")
+
+    # Agrupar
+    df_inverted_index = (
+        df_clean_tokens.groupBy("token")
+        .agg(collect_set("url_hash").alias("docs"))
+    )
+
+    # Guardar en HDFS (Parquet)
+    (
+        df_inverted_index.write
+        .mode("overwrite")
+        .parquet(output_path)
+    )
+
+    # Guardar mapping (Hash -> URL, Title, Score) para visualización rápida
+    # Extraemos el título (Primer H1, o H2, o Dominio)
+    from pyspark.sql.functions import coalesce
+    
+    df_mappings = df_latest.select(
+        spark_hash(col("url")).alias("url_hash"), 
+        col("url"),
+        coalesce(col("content.texts.h1")[0], col("content.texts.h2")[0], col("domain")).alias("title"),
+        col("external_refs")
+    ).distinct()
+    
+    (
+        df_mappings.write
+        .mode("overwrite")
+        .parquet(output_path + "_mappings")
+    )
+
+    return f"Inverted index created at {output_path}"
+
+
+def get_inverted_index_sample(limit: int = 20):
+    """
+    Devuelve una muestra del índice invertido para inspección.
+    """
+    init_spark()
+    
+    index_path = cfg["hdfs_base_path"] + "_inverted_index"
+    
+    try:
+        df_index = spark.read.parquet(index_path)
+        # Convertir a lista de dicts
+        # Ojo: 'docs' es una lista de hashes.
+        rows = df_index.limit(limit).collect()
+        result = [row.asDict() for row in rows]
+        return result
+    except Exception as e:
+        return {"error": f"Could not read index at {index_path}: {str(e)}"}
