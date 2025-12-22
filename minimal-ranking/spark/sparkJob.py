@@ -422,8 +422,14 @@ def create_invert_index(output_path: str = None):
     )
 
     # Guardar en HDFS (Parquet)
+    # OPTIMIZACIÓN: Ordenar por token.
+    # Esto permite que Parquet use "predicate pushdown" eficiente.
+    # Aunque no es una Hash Table (O(1)), al estar ordenado actúa como un B-Tree (O(log n)),
+    # lo cual es perfecto para búsquedas exactas Y prefix ("co" -> "coche").
     (
-        df_inverted_index.write
+        df_inverted_index
+        .orderBy("token")
+        .write
         .mode("overwrite")
         .parquet(output_path)
     )
