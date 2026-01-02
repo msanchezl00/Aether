@@ -109,7 +109,7 @@ def init_spark():
     df = _load_raw_data()
 
 
-def search_uris(query: str, max_results: int = 1000):
+def search_uris(query: str, max_results: int = 100):
     """
     Busca URLs usando el índice invertido (Token -> URL Hash) y luego filtra el contenido.
     """
@@ -146,12 +146,30 @@ def search_uris(query: str, max_results: int = 1000):
     conditions = [col("token").startswith(t) for t in tokens]
     combined_condition = reduce(lambda a, b: a | b, conditions)
 
-    df_candidates = (
+    df_matches = (
         df_index.filter(combined_condition)
         .select(explode(col("docs")).alias("url_hash"))
-        .distinct()
+    )
+
+    df_candidates = (
+        df_matches
+        .groupBy("url_hash")
+        .count() 
+        .withColumnRenamed("count", "match_count")
+    )
+
+    total_keywords = len(tokens)
+
+    df_candidates_lax = (
+        df_candidates
+        .filter(col("match_count") < total_keywords)
     )
     
+    df_candidates_strict = (
+        df_candidates
+        .filter(col("match_count") >= total_keywords)
+    )
+
     # Recolectar candidatos (Si son pocos, es rápido. Si son millones, mejor join)
     # Asumimos que para un buscador "minimal", collect es manejable o usamos join broadcast.
     # Usaremos Join para escalar.
@@ -165,27 +183,34 @@ def search_uris(query: str, max_results: int = 1000):
 
     # 4. Join con Mappings (RÁPIDO)
     # Solo nos quedamos con las páginas que aparecieron en el índice
-    df_filtered = df_mappings.join(df_candidates, "url_hash", "inner")
+    df_filtered_lax = df_mappings.join(df_candidates_lax, "url_hash", "inner")
+    df_filtered_strict = df_mappings.join(df_candidates_strict, "url_hash", "inner")
 
-    # 5. Ranking y Score
-    # Al usar mappings, ya tenemos el score y el título.
-    # No podemos hacer ranking fino de texto (h1, p) porque no cargamos el contenido.
-    # Confiamos en que el índice invertido "dice la verdad".
-    
+    # 2. Unimos ambos DataFrames (STRICT y LAX)
+    df_combined = df_filtered_strict.unionByName(df_filtered_lax)
+
+    # 3. Lógica de Match de URL (Exacto y Parcial)
     clean_query = query.strip()
-    
+
     df_result = (
-        df_filtered
-        .withColumn("is_exact_match", 
-            when((col("url") == clean_query) | (col("url") == "https://" + clean_query), lit(1))
-            .otherwise(lit(0))
-        )
-        .withColumn("is_url_partial_match",
-            when(col("url").contains(clean_query), lit(1))
-            .otherwise(lit(0))
-        )
-        .orderBy(col("is_exact_match").desc(), col("is_url_partial_match").desc(), col("external_refs").desc())
-        .limit(max_results)
+        df_combined
+            # --- Lógica de URL Exacta ---
+            .withColumn("is_exact_match", 
+                when((col("url") == clean_query) | (col("url") == "https://" + clean_query), lit(1))
+                .otherwise(lit(0))
+            )
+            .withColumn("is_url_partial_match",
+                when(col("url").contains(clean_query), lit(1))
+                .otherwise(lit(0))
+            )
+            # --- ORDENAMIENTO GRADUAL ---
+            .orderBy(
+                col("is_exact_match").desc(),      # 1. URL Exacta (El rey)
+                col("match_count").desc(),         # 2. CANTIDAD DE COINCIDENCIAS (Aquí está tu lógica gradual)
+                col("external_refs").desc(),       # 3. Popularidad (Desempate si tienen mismos aciertos)
+                col("is_url_partial_match").desc() # 4. Coincidencia visual de URL
+            )
+            .limit(max_results)
     )
 
     # Iterar resultados
