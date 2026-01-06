@@ -382,18 +382,22 @@
         li.style.setProperty('--i', index++); 
         const faviconSrc = getFaviconUrl(item.url);
 
-        /* ESTA ES LA LÍNEA MÁS IMPORTANTE DE TU SCRIPT.
-          Define la estructura HTML correcta, con el score FUERA
-          del enlace <a>.
-        */
         li.innerHTML = `
+          <hr>
+          <br>
           <div class="result-main">
             <img src="${faviconSrc}" alt="Favicon" class="favicon" onerror="this.style.display='none'">
+            <div class="score-display"><strong>${item.title}</strong></div>
             <a href="${item.url}" target="_blank" class="result-link">${item.url}</a>
           </div>
-          <div class="score-display">(${item.score.toFixed(2)})</div>
+          <br>
+          <div class="score-display">tf-idf(${item.score.toFixed(2)})</div>
+          <div class="score-display">matches(${item.matches.toFixed(2)})</div>
+          <div class="score-display">popularity(${item.popularity.toFixed(2)})</div>
+          <br>
         `;
         resultsList.appendChild(li);
+        
       }
     } catch (err) {
       console.error(err);
