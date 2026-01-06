@@ -215,8 +215,8 @@ def search_uris(query: str, max_results: int = 100):
         # --- ORDENAMIENTO MULTI-NIVEL ---
         .orderBy(
             col("is_exact_match").desc(),    # 1. Si buscó la URL exacta, sale primero sí o sí.
-            col("matches_count").desc(),     # 2. El que tenga MÁS palabras de la query (Tu lógica "Strict")
             col("content_score").desc(),     # 3. El que tenga mejor TF-IDF (Contenido más relevante)
+            col("matches_count").desc(),     # 2. El que tenga MÁS palabras de la query (Tu lógica "Strict")
             col("external_refs").desc(),     # 4. El más popular (Desempate)
             col("is_url_partial_match").desc()
         )
