@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-from spark.sparkJob import search_uris, process_hdfs_avro_data, get_crawled_data, create_invert_index, init_spark, get_inverted_index_sample
+from spark.sparkJob import search_uris, process_hdfs_avro_data, get_crawled_data, create_invert_index, init_spark, get_inverted_index_sample, create_idf_index
 
 router = APIRouter()
 
@@ -40,6 +40,11 @@ def get_crawled_data_route(url: str):
 @router.post("/create_invert_index")
 def create_index(output_path: str = None):
     result = create_invert_index(output_path)
+    return {"message": result}
+
+@router.post("/create_idf_index")
+def create_index_idf(index_path: str = None):
+    result = create_idf_index(index_path)
     return {"message": result}
 
 @router.get("/get_inverted_index")

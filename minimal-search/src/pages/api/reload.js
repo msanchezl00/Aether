@@ -16,6 +16,14 @@ export async function GET() {
       return new Response(JSON.stringify({ error: "Fallo en backend" }), { status: res2.status });
     }
 
+    const res3 = await fetch("http://ranking:8000/create_idf_index", {
+      method: "POST",
+    });
+
+    if (!res.ok) {
+      return new Response(JSON.stringify({ error: "Fallo en backend" }), { status: res3.status });
+    }
+
     return new Response(JSON.stringify({ success: true }), {
       headers: { "Content-Type": "application/json" },
     });

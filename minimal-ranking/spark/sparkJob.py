@@ -5,6 +5,18 @@ from functools import reduce
 from pyspark.sql.window import Window
 from py4j.java_gateway import java_import
 from pyspark.sql.functions import hash as spark_hash, split, transform, trim, array, array_union, collect_set, regexp_replace
+from pyspark.sql.functions import (
+    col, lit, concat_ws, row_number, explode, count, 
+    lower, split, collect_list, struct, when, col, lit, 
+    concat_ws, row_number, explode, split, trim, lower, 
+    regexp_replace, collect_list, struct, count, size, log,
+    col, lit, explode, sum as _sum, count, when, broadcast, lower
+)
+from pyspark.sql.functions import coalesce
+from pyspark.sql.types import StructType, StructField, StringType
+import math
+import re
+from functools import reduce
 
 # Variables globales para mantener el estado
 spark = None
@@ -51,7 +63,6 @@ def _load_raw_data(allow_missing_columns=True):
         return df_avro
     else:
         print("Warning: Could not load any data. Returning empty DataFrame.")
-        from pyspark.sql.types import StructType, StructField, StringType
         schema = StructType([
             StructField("url", StringType(), True),
             StructField("domain", StringType(), True),
@@ -111,118 +122,119 @@ def init_spark():
 
 def search_uris(query: str, max_results: int = 100):
     """
-    Busca URLs usando el índice invertido (Token -> URL Hash) y luego filtra el contenido.
+    Busca URLs usando TF-IDF.
+    Ranking:
+    1. Match Exacto de URL (Navegacional)
+    2. Cantidad de palabras encontradas (Coordination Factor)
+    3. Score TF-IDF (Relevancia de contenido)
+    4. Popularidad (External Refs)
     """
     init_spark()
     
-    # Path del índice y mappings
-    index_path = cfg["hdfs_base_path"] + "_inverted_index"
-    mappings_path = cfg["hdfs_base_path"] + "_inverted_index_mappings"
+    # Paths
+    base_path = cfg["hdfs_base_path"]
+    index_path = base_path + "_inverted_index"
+    idf_path = base_path + "_idf_index"      # <--- NUEVO PATH
+    mappings_path = base_path + "_inverted_index_mappings"
+    
     print(f"Searching index at: {index_path}")
 
-    
     # 1. Tokenizar query
-    # Estandarización manual simple alineada con el indexer
-    import re
     tokens = [w.lower() for w in re.split(r'\s+', query) if w.strip()]
-    
     if not tokens:
         return []
-
-    # 2. Cargar Índice y filtrar candidatos
+    
+    # 2. Cargar Datos
     try:
         df_index = spark.read.parquet(index_path)
+        df_idf = spark.read.parquet(idf_path) # <--- Cargar IDF
+        df_mappings = spark.read.parquet(mappings_path)
     except Exception as e:
-        print(f"Error loading inverted index: {e}. Fallback to full scan?")
-        return [] # O implementar fallback a scan completo
+        print(f"Error loading data: {e}")
+        return []
 
-    # Filtrar solo rows que coincidan con los tokens
-    # GroupBy y contar coincidencias para ranking básico pre-filtro?
-    # Por ahora: obtener TODOS los hashes que contengan AL MENOS UNO de los tokens (OR logic)
-    # Si quisieramos AND logic, haríamos intersection.
-    
-    # Explotamos los docs para tener: token | url_hash
-    # CAMBIO: Usamos 'startswith' para permitir búsqueda parcial (ej: "co" -> "coche")
+    # 3. Filtrar Índice (Búsqueda de candidatos)
+    # Usamos startswith para permitir "co" -> "coche"
     conditions = [col("token").startswith(t) for t in tokens]
     combined_condition = reduce(lambda a, b: a | b, conditions)
 
-    df_matches = (
-        df_index.filter(combined_condition)
-        .select(explode(col("docs")).alias("url_hash"))
-    )
+    # Filtramos el índice
+    df_matches = df_index.filter(combined_condition)
 
-    df_candidates = (
+    # 4. EXPLODE Y EXTRACCIÓN DE TF
+    # El campo 'docs' ahora es un array de estructuras: [{url_hash, tf}, ...]
+    df_exploded = (
         df_matches
+        .select(
+            col("token"),
+            explode(col("docs")).alias("doc_info") 
+        )
+        .select(
+            col("token"),
+            col("doc_info.url_hash").alias("url_hash"),
+            col("doc_info.tf").alias("tf") # <--- Aquí recuperamos el TF
+        )
+    )
+
+    # 5. JOIN CON IDF Y CÁLCULO DE SCORE
+    # Unimos con la tabla IDF para saber cuánto vale cada palabra encontrada
+    # Usamos broadcast porque la tabla IDF suele ser pequeña comparada con los docs
+    df_scored_tokens = (
+        df_exploded.join(broadcast(df_idf), "token", "inner")
+        .withColumn("term_score", col("tf") * col("idf")) # TF * IDF
+    )
+
+    # 6. AGREGACIÓN POR DOCUMENTO
+    # Sumamos los scores de todas las palabras encontradas para cada URL
+    df_candidates = (
+        df_scored_tokens
         .groupBy("url_hash")
-        .count() 
-        .withColumnRenamed("count", "match_count")
+        .agg(
+            _sum("term_score").alias("content_score"),    # Suma de relevancia (TF-IDF)
+            count("token").alias("matches_count")         # Cuántas palabras distintas de la query aparecieron
+        )
     )
 
-    total_keywords = len(tokens)
+    # 7. JOIN FINAL CON METADATOS (Título, URL, Popularidad)
+    df_result_raw = df_mappings.join(df_candidates, "url_hash", "inner")
 
-    df_candidates_lax = (
-        df_candidates
-        .filter(col("match_count") < total_keywords)
-    )
-    
-    df_candidates_strict = (
-        df_candidates
-        .filter(col("match_count") >= total_keywords)
-    )
-
-    # Recolectar candidatos (Si son pocos, es rápido. Si son millones, mejor join)
-    # Asumimos que para un buscador "minimal", collect es manejable o usamos join broadcast.
-    # Usaremos Join para escalar.
-
-    # 3. Cargar Mappings (Lightweight: Hash -> Title, URL, Score)
-    try:
-        df_mappings = spark.read.parquet(mappings_path)
-    except Exception as e:
-        print(f"Error loading mappings: {e}")
-        return []
-
-    # 4. Join con Mappings (RÁPIDO)
-    # Solo nos quedamos con las páginas que aparecieron en el índice
-    df_filtered_lax = df_mappings.join(df_candidates_lax, "url_hash", "inner")
-    df_filtered_strict = df_mappings.join(df_candidates_strict, "url_hash", "inner")
-
-    # 2. Unimos ambos DataFrames (STRICT y LAX)
-    df_combined = df_filtered_strict.unionByName(df_filtered_lax)
-
-    # 3. Lógica de Match de URL (Exacto y Parcial)
+    # 8. LÓGICA DE RANKING FINAL
     clean_query = query.strip()
-
-    df_result = (
-        df_combined
-            # --- Lógica de URL Exacta ---
-            .withColumn("is_exact_match", 
-                when((col("url") == clean_query) | (col("url") == "https://" + clean_query), lit(1))
-                .otherwise(lit(0))
-            )
-            .withColumn("is_url_partial_match",
-                when(col("url").contains(clean_query), lit(1))
-                .otherwise(lit(0))
-            )
-            # --- ORDENAMIENTO GRADUAL ---
-            .orderBy(
-                col("is_exact_match").desc(),      # 1. URL Exacta (El rey)
-                col("match_count").desc(),         # 2. CANTIDAD DE COINCIDENCIAS (Aquí está tu lógica gradual)
-                col("external_refs").desc(),       # 3. Popularidad (Desempate si tienen mismos aciertos)
-                col("is_url_partial_match").desc() # 4. Coincidencia visual de URL
-            )
-            .limit(max_results)
+    
+    df_ranked = (
+        df_result_raw
+        # --- Flags de URL ---
+        .withColumn("is_exact_match", 
+            when((col("url") == clean_query) | (col("url") == "https://" + clean_query), lit(1))
+            .otherwise(lit(0))
+        )
+        .withColumn("is_url_partial_match",
+            when(col("url").contains(clean_query), lit(1))
+            .otherwise(lit(0))
+        )
+        # --- ORDENAMIENTO MULTI-NIVEL ---
+        .orderBy(
+            col("is_exact_match").desc(),    # 1. Si buscó la URL exacta, sale primero sí o sí.
+            col("matches_count").desc(),     # 2. El que tenga MÁS palabras de la query (Tu lógica "Strict")
+            col("content_score").desc(),     # 3. El que tenga mejor TF-IDF (Contenido más relevante)
+            col("external_refs").desc(),     # 4. El más popular (Desempate)
+            col("is_url_partial_match").desc()
+        )
+        .limit(max_results)
     )
 
-    # Iterar resultados
-    urls_with_score = []
-    for row in df_result.collect():
-        urls_with_score.append({
-            "url": row["url"], 
-            "title": row["title"], # Added Title
-            "score": row["external_refs"] if "external_refs" in row else 0
+    # 9. Formatear salida
+    output = []
+    for row in df_ranked.collect():
+        output.append({
+            "url": row["url"],
+            "title": row["title"],
+            "score": round(row["content_score"], 2), # Devolvemos el score TF-IDF
+            "matches": row["matches_count"],
+            "popularity": row["external_refs"]
         })
 
-    return urls_with_score
+    return output
 
 
 def get_crawled_data(url: str):
@@ -387,33 +399,26 @@ def process_hdfs_avro_data():
 
 def create_invert_index(output_path: str = None):
     """
-    Crea un índice invertido (Token -> [Lista de Hashes de URL]) a partir de la última versión
-    de cada página crawleada.
-    Se normaliza el texto (h1, h2, p), se tokeniza y se agrupa.
+    Crea un índice invertido guardando TF (Frecuencia del término).
+    Output Schema: Token -> [{url_hash: 123, tf: 5}, {url_hash: 456, tf: 1}]
     """
     init_spark()
     
     if not output_path:
         output_path = cfg["hdfs_base_path"] + "_inverted_index"
 
-    # Cargar datos originales del helper
     raw_df = _load_raw_data()
 
-    # Construir URL
+    # --- Preprocesamiento (Igual que tu código) ---
     df_with_url = raw_df.withColumn("url", concat_ws("", lit("https://"), col("domain"), col("real_path")))
 
-    # Ventana para quedarse con la última fecha
     windowLatest = Window.partitionBy("url").orderBy(col("date").desc())
-
     df_latest = (
         df_with_url.withColumn("rn", row_number().over(windowLatest))
         .filter(col("rn") == 1)
         .drop("rn")
     )
 
-    # ... Resto igual ...
-    
-    # AÑADIDO: domain, real_path (split por / y -), tags
     df_tokens = df_latest.withColumn("all_text", 
         concat_ws(" ", 
             col("domain"), 
@@ -426,31 +431,35 @@ def create_invert_index(output_path: str = None):
         )
     )
 
-    # Tokenizar: Limpiar texto (dejar solo letras y números) y luego separar
-    # Reemplazamos todo lo que NO sea alfanumérico por espacio
     df_clean_text = df_tokens.withColumn("clean_text", regexp_replace(lower(col("all_text")), "[^a-z0-9áéíóúñ]+", " "))
-
+    
+    # 1. Explotar para tener 1 fila por cada ocurrencia de palabra
     df_exploded = (
         df_clean_text.select(
             col("url"),
-            spark_hash(col("url")).alias("url_hash"),
+            spark_hash(col("url")).alias("url_hash"), # spark_hash
             explode(split(trim(col("clean_text")), "\\s+")).alias("token")
         )
+    ).filter(col("token") != "")
+
+    # 2. CALCULAR TF: Contamos cuántas veces aparece cada token en cada URL
+    # GroupBy (Token, URL) -> Count
+    df_tf = (
+        df_exploded
+        .groupBy("token", "url_hash")
+        .count()
+        .withColumnRenamed("count", "tf") # Term Frequency
     )
 
-    df_clean_tokens = df_exploded.filter(col("token") != "")
-
-    # Agrupar
+    # 3. Agrupar final para el índice invertido
+    # Ahora guardamos una lista de ESTRUCTURAS: [{url: hash, tf: count}, ...]
     df_inverted_index = (
-        df_clean_tokens.groupBy("token")
-        .agg(collect_set("url_hash").alias("docs"))
+        df_tf
+        .groupBy("token")
+        .agg(collect_list(struct(col("url_hash"), col("tf"))).alias("docs"))
     )
 
-    # Guardar en HDFS (Parquet)
-    # OPTIMIZACIÓN: Ordenar por token.
-    # Esto permite que Parquet use "predicate pushdown" eficiente.
-    # Aunque no es una Hash Table (O(1)), al estar ordenado actúa como un B-Tree (O(log n)),
-    # lo cual es perfecto para búsquedas exactas Y prefix ("co" -> "coche").
+    # Guardar Índice Invertido
     (
         df_inverted_index
         .orderBy("token")
@@ -459,10 +468,7 @@ def create_invert_index(output_path: str = None):
         .parquet(output_path)
     )
 
-    # Guardar mapping (Hash -> URL, Title, Score) para visualización rápida
-    # Extraemos el título (Primer H1, o H2, o Dominio)
-    from pyspark.sql.functions import coalesce
-    
+    # Guardar Mappings (Igual que antes, necesario para recuperar titulos)
     df_mappings = df_latest.select(
         spark_hash(col("url")).alias("url_hash"), 
         col("url"),
@@ -476,7 +482,7 @@ def create_invert_index(output_path: str = None):
         .parquet(output_path + "_mappings")
     )
 
-    return f"Inverted index created at {output_path}"
+    return f"Inverted index with TF created at {output_path}"
 
 
 def get_inverted_index_sample(limit: int = 20, token: str = None):
@@ -501,3 +507,58 @@ def get_inverted_index_sample(limit: int = 20, token: str = None):
         return result
     except Exception as e:
         return {"error": f"Could not read index at {index_path}: {str(e)}"}
+    
+def create_idf_index(index_path: str = None):
+    """
+    Calcula el IDF global leyendo el índice invertido ya procesado.
+    Output: Token -> IDF Score
+    """
+    init_spark()
+    
+    if not index_path:
+        base_path = cfg["hdfs_base_path"]
+        index_path = base_path + "_inverted_index"
+        mappings_path = base_path + "_inverted_index_mappings"
+        output_path = base_path + "_idf_index"
+    else:
+        # Asumimos convenciones de nombres si se pasa path custom
+        mappings_path = index_path + "_mappings"
+        output_path = index_path.replace("_inverted_index", "") + "_idf_index"
+
+    print(f"Reading index from: {index_path}")
+
+    # 1. Obtener N (Número total de documentos)
+    try:
+        df_mappings = spark.read.parquet(mappings_path)
+        total_docs = df_mappings.count()
+        print(f"Total documents (N): {total_docs}")
+    except Exception as e:
+        print(f"Error reading mappings for count: {e}")
+        return
+
+    # 2. Cargar Índice Invertido
+    df_index = spark.read.parquet(index_path)
+
+    # 3. Calcular IDF
+    # DF (Document Frequency) = size(docs) -> En cuántas URLs aparece el token
+    # IDF = log( (N + 1) / (DF + 1) )
+    
+    df_idf_calc = (
+        df_index
+        .select(
+            col("token"),
+            size(col("docs")).alias("doc_freq")
+        )
+        .withColumn("idf", log((lit(total_docs) + 1) / (col("doc_freq") + 1)))
+    )
+
+    # 4. Guardar tabla pequeña de IDF
+    # Esta tabla es muy ligera (solo 1 fila por palabra única)
+    (
+        df_idf_calc
+        .write
+        .mode("overwrite")
+        .parquet(output_path)
+    )
+
+    return f"IDF Index created at {output_path}"
