@@ -60,3 +60,19 @@ Below is the full system architecture and data flow diagram:
 2. Launch System:
    ```bash
    docker compose up -d
+
+## 🖥️ Interface
+
+- Aether: port 5050
+
+![Aether UI](docs/aether-search.png)  
+
+- HDFS: port 9870
+
+![HDFS UI](docs/hdfs-ui.png)  
+
+- Spark: port 8080
+
+![Spark UI](docs/spark-ui.png)  
+
+- Ranking API: port 8000 with postman collection in /docs

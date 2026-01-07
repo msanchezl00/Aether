@@ -1,0 +1,188 @@
+{
+	"info": {
+		"_postman_id": "aa60783e-1679-4450-b015-0af6290d4960",
+		"name": "Ranking",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "27229792"
+	},
+	"item": [
+		{
+			"name": "Search",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"text\": \"becas\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8000/search",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"search"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get data",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"text\": \"https://usal.es\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8000/get_crawled_data",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"get_crawled_data"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get inverted index",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"text\": \"https://usal.es\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8000/get_crawled_data",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"get_crawled_data"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Create Invert Index",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"text\": \"https://usal.es\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8000/get_crawled_data",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"get_crawled_data"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Create idf Index",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"text\": \"https://usal.es\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8000/get_crawled_data",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"get_crawled_data"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Process HDFS avro data",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8000/load_hdfs_parquet_data",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"load_hdfs_parquet_data"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Init Spark",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8000/load_hdfs_parquet_data",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"load_hdfs_parquet_data"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
