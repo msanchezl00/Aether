@@ -2,3 +2,4 @@ main
 .DS_Store
 node_modules
 dist        
+server.sh
