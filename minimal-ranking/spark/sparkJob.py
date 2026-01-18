@@ -215,9 +215,10 @@ def search_uris(query: str, max_results: int = 100):
         # --- ORDENAMIENTO MULTI-NIVEL ---
         .orderBy(
             col("is_exact_match").desc(),    # 1. Si buscó la URL exacta, sale primero sí o sí.
-            col("content_score").desc(),     # 3. El que tenga mejor TF-IDF (Contenido más relevante)
-            col("matches_count").desc(),     # 2. El que tenga MÁS palabras de la query (Tu lógica "Strict")
-            col("external_refs").desc(),     # 4. El más popular (Desempate)
+            col("content_score").desc(),     # 2. El que tenga mejor TF-IDF (Contenido más relevante)
+            col("matches_count").desc(),     # 3. El que tenga MÁS palabras de la query (Tu lógica "Strict")
+            col("pagerank").desc(),          # 4. Autoridad (PageRank)
+            col("external_refs").desc(),     # 5. Popularidad pura (Desempate)
             col("is_url_partial_match").desc()
         )
         .limit(max_results)
@@ -231,7 +232,8 @@ def search_uris(query: str, max_results: int = 100):
             "title": row["title"],
             "score": round(row["content_score"], 2), # Devolvemos el score TF-IDF
             "matches": row["matches_count"],
-            "popularity": row["external_refs"]
+            "popularity": row["external_refs"],
+            "pagerank": row["pagerank"] if "pagerank" in row else 0.0
         })
 
     return output
@@ -326,14 +328,83 @@ def process_hdfs_avro_data():
         .agg(count("*").alias("external_refs"))
     )
 
+    # --- CÁLCULO DE PAGERANK (Iterativo) ---
+    print("Calculating PageRank...")
+    # 1. Definir Vértices (URLs únicas del snapshot actual)
+    df_vertices = df_latest_snapshot.select("url").distinct().cache()
+
+    # 2. Definir Aristas (src -> dst)
+    # Extraemos todos los links
+    df_rough_edges = (
+        df_latest_snapshot.select(col("url").alias("src"), explode(col("content.links.https")).alias("dst"))
+        .union(
+            df_latest_snapshot.select(col("url").alias("src"), explode(col("content.links.http")).alias("dst"))
+        )
+    ).select("src", "dst").distinct()
+
+    # Filtramos: El destino DEBE existir en nuestros vértices (PageRank Interno)
+    df_edges = (
+        df_rough_edges.join(df_vertices, df_rough_edges.dst == df_vertices.url, "inner")
+        .select("src", "dst")
+    )
+
+    # 3. Calcular Pesos de Transición (1 / OutDegree)
+    df_out_degrees = df_edges.groupBy("src").count().withColumnRenamed("count", "out_degree")
+    
+    # Tabla de transiciones estática: src -> dst con peso
+    df_transitions = (
+        df_edges.join(df_out_degrees, "src")
+        .select("src", "dst", (lit(1.0) / col("out_degree")).alias("weight"))
+    ).cache()
+
+    # 4. Inicializar Ranks
+    # Valor inicial 1.0 (o 1/N, pero 1.0 es estándar si luego normalizas o no importa la escala relativa)
+    df_ranks = df_vertices.select(col("url").alias("src"), lit(1.0).alias("rank"))
+
+    # 5. Iteraciones (Power Iteration)
+    INPUT_DAMPING = 0.85
+    MAX_ITER = 10
+    base_score = 1.0 - INPUT_DAMPING
+
+    for i in range(MAX_ITER):
+        # Contribuciones: Cada src envía 'rank * weight' a su dst
+        df_contribs = (
+            df_ranks.join(df_transitions, "src")
+            .select("dst", (col("rank") * col("weight")).alias("contrib"))
+            .groupBy("dst")
+            .agg(_sum("contrib").alias("sum_contrib"))
+        )
+        
+        # Actualizar Ranks: (1-d) + d * sum(contribs)
+        # Usamos Left Join con Vértices para asegurar que no perdemos nodos (los que no reciben links tienen sum=0)
+        df_ranks = (
+            df_vertices.alias("v")
+            .join(df_contribs, col("v.url") == col("dst"), "left")
+            .select(
+                col("v.url").alias("src"), 
+                (lit(base_score) + lit(INPUT_DAMPING) * coalesce(col("sum_contrib"), lit(0.0))).alias("rank")
+            )
+        )
+        # Materializar para cortar linaje en iteraciones largas (aunque 10 es poco)
+        # df_ranks.cache() 
+
+    df_pagerank_result = df_ranks.withColumnRenamed("rank", "pagerank").withColumnRenamed("src", "pr_url")
+
+
     # --- UNIÓN Y ESCRITURA ---
     if "external_refs" in df_history.columns:
         df_history = df_history.drop("external_refs")
+    if "pagerank" in df_history.columns:
+        df_history = df_history.drop("pagerank")
 
     df_final = (
-        df_history.join(df_ref_count, df_history.url == df_ref_count.link, "left")
+        df_history
+        .join(df_ref_count, df_history.url == df_ref_count.link, "left")
         .drop(df_ref_count.link)
         .fillna(0, subset=["external_refs"])
+        .join(df_pagerank_result, df_history.url == df_pagerank_result.pr_url, "left")
+        .drop("pr_url")
+        .fillna(1.0 - INPUT_DAMPING, subset=["pagerank"]) # Si por algo falla, valor base
     )
     
     # Actualizar la referencia global
@@ -433,10 +504,16 @@ def create_invert_index(output_path: str = None):
 
     df_clean_text = df_tokens.withColumn("clean_text", regexp_replace(lower(col("all_text")), "[^a-z0-9áéíóúñ]+", " "))
     
+    # Safety Check: Ensure pagerank column exists to avoid analysis errors
+    if "pagerank" not in df_clean_text.columns:
+        print("WARNING: 'pagerank' column missing. Defaulting to 0.15.")
+        df_clean_text = df_clean_text.withColumn("pagerank", lit(0.15))
+    
     # 1. Explotar para tener 1 fila por cada ocurrencia de palabra
     df_exploded = (
         df_clean_text.select(
             col("url"),
+            col("pagerank"),
             spark_hash(col("url")).alias("url_hash"), # spark_hash
             explode(split(trim(col("clean_text")), "\\s+")).alias("token")
         )
@@ -446,17 +523,17 @@ def create_invert_index(output_path: str = None):
     # GroupBy (Token, URL) -> Count
     df_tf = (
         df_exploded
-        .groupBy("token", "url_hash")
+        .groupBy("token", "url_hash", "pagerank")
         .count()
         .withColumnRenamed("count", "tf") # Term Frequency
     )
 
     # 3. Agrupar final para el índice invertido
-    # Ahora guardamos una lista de ESTRUCTURAS: [{url: hash, tf: count}, ...]
+    # Ahora guardamos una lista de ESTRUCTURAS: [{url: hash, tf: count, pagerank: ...}, ...]
     df_inverted_index = (
         df_tf
         .groupBy("token")
-        .agg(collect_list(struct(col("url_hash"), col("tf"))).alias("docs"))
+        .agg(collect_list(struct(col("url_hash"), col("tf"), col("pagerank"))).alias("docs"))
     )
 
     # Guardar Índice Invertido
@@ -473,7 +550,8 @@ def create_invert_index(output_path: str = None):
         spark_hash(col("url")).alias("url_hash"), 
         col("url"),
         coalesce(col("content.texts.h1")[0], col("content.texts.h2")[0], col("domain")).alias("title"),
-        col("external_refs")
+        col("external_refs"),
+        col("pagerank")
     ).distinct()
     
     (
