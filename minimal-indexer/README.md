@@ -1,10 +1,10 @@
 # Minimal Indexer
 
-The `minimal-indexer` module orchestrates the full indexing flow inside Aether.
+The `minimal-indexer` module orchestrates the complete indexing flow inside Aether.
 
 ## Responsibility
 
-It consumes documents from Kafka (crawler output), transforms content to generate tags and normalized metadata, and publishes the serialized Avro output to the destination topic for downstream persistence.
+It consumes documents from Kafka (crawler output), transforms content to generate tags and normalized metadata, and publishes serialized Avro output to the destination topic for downstream persistence.
 
 ## Components
 
@@ -19,12 +19,12 @@ It consumes documents from Kafka (crawler output), transforms content to generat
 1. `InitIndexer(ctx)` creates a worker pool (`chan struct{}`) using `IndexerConfig.Workers`.
 2. It starts the consumer loop via `ConsumerService.Consumer(...)`.
 3. For each Kafka message:
-   - deserialize into `KafkaCrawlerPayload`.
-   - acquire a pool slot to enforce concurrency limits.
-   - launch a goroutine that calls `Indexer(payload)`.
+   - Deserialize into `KafkaCrawlerPayload`.
+   - Acquire a pool slot to enforce concurrency limits.
+   - Launch a goroutine that calls `Indexer(payload)`.
 4. `Indexer(payload)`:
-   - transforms content using `TransformerService.Transform`.
-   - serializes/publishes output with `StorageService.KafkaStorage(...)`.
+   - Transforms content using `TransformerService.Transform`.
+   - Serializes and publishes output with `StorageService.KafkaStorage(...)`.
 
 ## Concurrency
 
