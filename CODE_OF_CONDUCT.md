@@ -58,10 +58,8 @@ representative at an online or offline event.
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the community leaders responsible for enforcement at
-maintainers@aether-project.dev.
-All complaints will be reviewed and investigated promptly and fairly.
+This project currently does not provide a dedicated private reporting contact.
+If a reporting channel is added in the future, this section will be updated.
 
 All community leaders are obligated to respect the privacy and security of the
 reporter of any incident.
