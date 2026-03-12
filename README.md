@@ -40,6 +40,10 @@ Below is the full system architecture and data flow diagram:
 
 ---
 
+## 🤝 Code of Conduct
+
+Please review our community guidelines in [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+
 ## 🚀 Features
 
 - Distributed crawling and indexing
