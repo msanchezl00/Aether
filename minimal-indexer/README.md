@@ -1,6 +1,6 @@
-# Indexer Module
+# Minimal Indexer
 
-El módulo `indexer` orquesta el flujo completo de indexación dentro de `minimal-indexer`.
+El módulo `minimal-indexer` orquesta el flujo completo de indexación dentro de Aether.
 
 ## Responsabilidad
 
@@ -8,7 +8,7 @@ Recibe documentos desde Kafka (salida del crawler), ejecuta la transformación d
 
 ## Componentes
 
-- **`Handler`**: estructura principal del módulo.
+- **`Handler`**: estructura principal del indexador.
   - `IndexerConfig`: configuración de concurrencia (workers).
   - `ConsumerService`: servicio para consumir mensajes Kafka de entrada.
   - `TransformerService`: servicio para transformar payloads de crawler en payloads de indexación.
@@ -32,7 +32,7 @@ Recibe documentos desde Kafka (salida del crawler), ejecuta la transformación d
 - Se usa `sync.WaitGroup` para esperar goroutines en el cierre del proceso.
 - Cada tarea libera su slot del pool al finalizar.
 
-## Dependencias del módulo
+## Dependencias
 
 - `modules/consumer`: lectura de eventos desde Kafka.
 - `modules/transformer`: extracción/normalización de tags y estructura final.
