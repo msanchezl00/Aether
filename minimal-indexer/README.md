@@ -1,47 +1,47 @@
 # Minimal Indexer
 
-El módulo `minimal-indexer` orquesta el flujo completo de indexación dentro de Aether.
+The `minimal-indexer` module orchestrates the full indexing flow inside Aether.
 
-## Responsabilidad
+## Responsibility
 
-Recibe documentos desde Kafka (salida del crawler), ejecuta la transformación de contenido para generar tags y metadatos normalizados, y envía el resultado serializado en Avro al tópico de salida para su persistencia posterior.
+It consumes documents from Kafka (crawler output), transforms content to generate tags and normalized metadata, and publishes the serialized Avro output to the destination topic for downstream persistence.
 
-## Componentes
+## Components
 
-- **`Handler`**: estructura principal del indexador.
-  - `IndexerConfig`: configuración de concurrencia (workers).
-  - `ConsumerService`: servicio para consumir mensajes Kafka de entrada.
-  - `TransformerService`: servicio para transformar payloads de crawler en payloads de indexación.
-  - `StorageService`: servicio para publicar payloads transformados en Kafka.
+- **`Handler`**: main indexer orchestrator.
+  - `IndexerConfig`: concurrency configuration (`workers`).
+  - `ConsumerService`: consumes input Kafka messages.
+  - `TransformerService`: converts crawler payloads into indexer payloads.
+  - `StorageService`: publishes transformed payloads to Kafka.
 
-## Flujo de ejecución
+## Execution Flow
 
-1. `InitIndexer(ctx)` crea un pool de workers (`chan struct{}`) según `IndexerConfig.Workers`.
-2. Inicia el loop de consumo con `ConsumerService.Consumer(...)`.
-3. Por cada mensaje Kafka:
-   - deserializa a `KafkaCrawlerPayload`.
-   - adquiere un slot del pool para limitar concurrencia.
-   - lanza una goroutine que invoca `Indexer(payload)`.
+1. `InitIndexer(ctx)` creates a worker pool (`chan struct{}`) using `IndexerConfig.Workers`.
+2. It starts the consumer loop via `ConsumerService.Consumer(...)`.
+3. For each Kafka message:
+   - deserialize into `KafkaCrawlerPayload`.
+   - acquire a pool slot to enforce concurrency limits.
+   - launch a goroutine that calls `Indexer(payload)`.
 4. `Indexer(payload)`:
-   - transforma el contenido mediante `TransformerService.Transform`.
-   - serializa/publica el resultado con `StorageService.KafkaStorage(...)`.
+   - transforms content using `TransformerService.Transform`.
+   - serializes/publishes output with `StorageService.KafkaStorage(...)`.
 
-## Concurrencia
+## Concurrency
 
-- El número de tareas simultáneas está acotado por `workers`.
-- Se usa `sync.WaitGroup` para esperar goroutines en el cierre del proceso.
-- Cada tarea libera su slot del pool al finalizar.
+- Maximum parallel tasks are bounded by `workers`.
+- `sync.WaitGroup` is used to wait for goroutines during shutdown.
+- Each task releases its pool slot when it finishes.
 
-## Dependencias
+## Dependencies
 
-- `modules/consumer`: lectura de eventos desde Kafka.
-- `modules/transformer`: extracción/normalización de tags y estructura final.
-- `modules/storage`: escritura en tópico Kafka de salida.
-- `utils/BuildPayloadAvro`: codificación del payload para schema registry + Avro.
+- `modules/consumer`: reads events from Kafka.
+- `modules/transformer`: extracts/normalizes tags and final document structure.
+- `modules/storage`: writes to the output Kafka topic.
+- `utils/BuildPayloadAvro`: encodes payloads for Schema Registry + Avro.
 
-## Configuración relacionada
+## Related Configuration
 
-Parámetros consumidos de `config.json` que impactan este módulo:
+`config.json` keys that affect this module:
 
 - `workers`
 - `brokers`
@@ -50,8 +50,8 @@ Parámetros consumidos de `config.json` que impactan este módulo:
 - `group-id`
 - `retry-delays`
 
-## Notas operativas
+## Operational Notes
 
-- Si falla la deserialización del mensaje de entrada, el mensaje se descarta y se registra error.
-- Si falla la transformación o el almacenamiento, se registra error en logs.
-- La capa de storage aplica reintentos exponiendo el número de intento vía `retry-delays`.
+- If input message deserialization fails, the message is discarded and an error is logged.
+- If transformation or storage fails, errors are logged.
+- The storage layer retries according to `retry-delays`.
