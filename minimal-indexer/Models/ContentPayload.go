@@ -5,6 +5,7 @@ type ContentPayload struct {
 	Metadata Metadata `avro:"metadata"`
 	Imgs     Imgs     `avro:"imgs"`
 	Texts    Texts    `avro:"texts"`
+	RawHTML  string   `avro:"raw_html"`
 }
 
 type Links struct {
@@ -28,7 +29,9 @@ type Imgs struct {
 }
 
 type Texts struct {
-	H1 []string `avro:"h1"`
-	H2 []string `avro:"h2"`
-	P  []string `avro:"p"`
+	H1      []string `avro:"h1"`
+	H2      []string `avro:"h2"`
+	P       []string `avro:"p"`
+	Section []string `avro:"section"`
+	Bold    []string `avro:"bold"`
 }

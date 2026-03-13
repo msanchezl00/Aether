@@ -42,9 +42,12 @@ const KafkaIndexerAvroSchema = `{
           "fields":[
             {"name":"h1","type":{"type":"array","items":"string"},"default":[]},
             {"name":"h2","type":{"type":"array","items":"string"},"default":[]},
-            {"name":"p","type":{"type":"array","items":"string"},"default":[]}
+            {"name":"p","type":{"type":"array","items":"string"},"default":[]},
+            {"name":"section","type":{"type":"array","items":"string"},"default":[]},
+            {"name":"bold","type":{"type":"array","items":"string"},"default":[]}
           ]
-        }, "default": {}}
+        }, "default": {}},
+        {"name":"raw_html","type":["null","string"],"default":null}
       ]
     }, "default": {}}
   ]

@@ -79,6 +79,8 @@ func ExtractTags(domain string, path string, c models.ContentPayload, keywordLib
 
 	allTexts := append(c.Texts.H1, c.Texts.H2...)
 	allTexts = append(allTexts, c.Texts.P...)
+	allTexts = append(allTexts, c.Texts.Section...)
+	allTexts = append(allTexts, c.Texts.Bold...)
 	text := strings.ToLower(strings.Join(allTexts, " "))
 
 	// Etiquetas fijas
