@@ -100,6 +100,14 @@ func ExtractTags(domain string, path string, c models.ContentPayload, keywordLib
 		}
 	}
 
+	// Etiquetas explícitas de textos en negrita
+	for _, boldText := range c.Texts.Bold {
+		b := strings.ToLower(strings.TrimSpace(boldText))
+		if b != "" {
+			tags[b] = true
+		}
+	}
+
 	// Etiquetas técnicas
 	if len(c.Metadata.Logo) > 0 {
 		tags["marca"] = true
