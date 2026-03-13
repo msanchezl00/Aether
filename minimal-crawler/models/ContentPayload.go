@@ -5,6 +5,7 @@ type ContentPayload struct {
 	Metadata Metadata `json:"metadata"`
 	Imgs     Imgs     `json:"imgs"`
 	Texts    Texts    `json:"texts"`
+	RawHTML  string   `json:"raw_html"`
 }
 
 type Links struct {
@@ -28,7 +29,9 @@ type Imgs struct {
 }
 
 type Texts struct {
-	H1 []string `json:"h1"`
-	H2 []string `json:"h2"`
-	P  []string `json:"p"`
+	H1      []string `json:"h1"`
+	H2      []string `json:"h2"`
+	P       []string `json:"p"`
+	Section []string `json:"section"`
+	Bold    []string `json:"bold"`
 }

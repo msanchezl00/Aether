@@ -79,6 +79,8 @@ func ExtractTags(domain string, path string, c models.ContentPayload, keywordLib
 
 	allTexts := append(c.Texts.H1, c.Texts.H2...)
 	allTexts = append(allTexts, c.Texts.P...)
+	allTexts = append(allTexts, c.Texts.Section...)
+	allTexts = append(allTexts, c.Texts.Bold...)
 	text := strings.ToLower(strings.Join(allTexts, " "))
 
 	// Etiquetas fijas
@@ -95,6 +97,14 @@ func ExtractTags(domain string, path string, c models.ContentPayload, keywordLib
 	for _, segment := range allTexts {
 		for _, found := range extractDynamicKeywords(segment, patterns) {
 			tags[strings.TrimSpace(found)] = true
+		}
+	}
+
+	// Etiquetas explícitas de textos en negrita
+	for _, boldText := range c.Texts.Bold {
+		b := strings.ToLower(strings.TrimSpace(boldText))
+		if b != "" {
+			tags[b] = true
 		}
 	}
 

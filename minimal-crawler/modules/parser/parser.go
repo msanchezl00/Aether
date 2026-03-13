@@ -48,6 +48,8 @@ func (s *Service) Parse(htmlUTF8 []byte) (models.ContentPayload, error) {
 		return models.ContentPayload{}, err
 	}
 
+	data.RawHTML = string(htmlUTF8)
+
 	return data, nil
 }
 
@@ -171,6 +173,20 @@ func (s *Service) ParseTexts(doc *goquery.Document) (models.Texts, error) {
 	doc.Find("p").Each(func(i int, p *goquery.Selection) {
 		text := p.Text()
 		texts.P = append(texts.P, text)
+	})
+
+	doc.Find("section").Each(func(i int, section *goquery.Selection) {
+		text := strings.TrimSpace(section.Text())
+		if text != "" {
+			texts.Section = append(texts.Section, text)
+		}
+	})
+
+	doc.Find("strong, b").Each(func(i int, bold *goquery.Selection) {
+		text := strings.TrimSpace(bold.Text())
+		if text != "" {
+			texts.Bold = append(texts.Bold, text)
+		}
 	})
 
 	return texts, nil
